@@ -734,7 +734,7 @@ generate_launchd_plist() {
     
     # Plist destination
     local plist_dir="${HOME}/Library/LaunchAgents"
-    local plist_file="${plist_dir}/com.user.homebrew-config.plist"
+    local plist_file="${plist_dir}/com.homebrewconfig.automation.plist"
     
     # Create LaunchAgents directory if it doesn't exist
     if [[ ! -d "${plist_dir}" ]]; then
@@ -763,7 +763,7 @@ generate_launchd_plist() {
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.user.homebrew-config</string>
+    <string>Homebrew Config Automation</string>
     <key>ProgramArguments</key>
     <array>
         <string>${script_path}</string>

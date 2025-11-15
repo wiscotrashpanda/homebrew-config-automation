@@ -239,7 +239,7 @@ The script includes a `--generate-plist` option that creates a launchd plist fil
 brew-config.sh --generate-plist --schedule-time 02:00
 ```
 
-This generates `~/Library/LaunchAgents/com.user.homebrew-config.plist`:
+This generates `~/Library/LaunchAgents/com.homebrewconfig.automation.plist`:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -247,7 +247,7 @@ This generates `~/Library/LaunchAgents/com.user.homebrew-config.plist`:
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.user.homebrew-config</string>
+    <string>Homebrew Config Automation</string>
     <key>ProgramArguments</key>
     <array>
         <string>/Users/username/bin/brew-config.sh</string>
@@ -270,7 +270,7 @@ This generates `~/Library/LaunchAgents/com.user.homebrew-config.plist`:
 After generation, the script provides instructions for loading:
 
 ```bash
-launchctl load ~/Library/LaunchAgents/com.user.homebrew-config.plist
+launchctl load ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
 ```
 
 **Alternative: Manual cron Entry:**
@@ -531,12 +531,12 @@ Each test script will:
 
 ### Uninstallation
 
-1. Unload launchd job: `launchctl unload ~/Library/LaunchAgents/com.user.homebrew-config.plist`
+1. Unload launchd job: `launchctl unload ~/Library/LaunchAgents/com.homebrewconfig.automation.plist`
 2. Remove installed files:
    - Script: `~/bin/brew-config.sh`
    - Config: `~/.config/homebrew-config/`
    - Logs: `~/.local/share/homebrew-config/`
-   - Plist: `~/Library/LaunchAgents/com.user.homebrew-config.plist`
+   - Plist: `~/Library/LaunchAgents/com.homebrewconfig.automation.plist`
 
 ### Updates
 

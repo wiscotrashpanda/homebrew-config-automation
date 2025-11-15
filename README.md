@@ -61,7 +61,7 @@ cd homebrew-config
 - **Configuration**: `~/.config/homebrew-config/config.sh`
 - **Example Config**: `~/.config/homebrew-config/config.sh.example`
 - **Logs**: `~/.local/share/homebrew-config/logs/`
-- **Launchd Plist** (if scheduled): `~/Library/LaunchAgents/com.user.homebrew-config.plist`
+- **Launchd Plist** (if scheduled): `~/Library/LaunchAgents/com.homebrewconfig.automation.plist`
 
 ## Configuration
 
@@ -124,11 +124,11 @@ Configuration is loaded in this order (highest to lowest priority):
 
    ```bash
    # Edit the plist
-   nano ~/Library/LaunchAgents/com.user.homebrew-config.plist
+   nano ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
 
    # Reload launchd
-   launchctl unload ~/Library/LaunchAgents/com.user.homebrew-config.plist
-   launchctl load ~/Library/LaunchAgents/com.user.homebrew-config.plist
+   launchctl unload ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
+   launchctl load ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
    ```
 
 ## Usage
@@ -195,7 +195,7 @@ brew-config.sh --destination ~/dotfiles
 brew-config.sh --generate-plist --schedule-time 03:30
 
 # Load the plist
-launchctl load ~/Library/LaunchAgents/com.user.homebrew-config.plist
+launchctl load ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
 ```
 
 **Weekly updates with custom interval:**
@@ -229,7 +229,7 @@ brew-config.sh --generate-plist --schedule-time 06:00
 After generating the plist, load it with launchctl:
 
 ```bash
-launchctl load ~/Library/LaunchAgents/com.user.homebrew-config.plist
+launchctl load ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
 ```
 
 The `--generate-plist` option will:
@@ -272,26 +272,26 @@ launchctl list | grep homebrew-config
 **View schedule:**
 
 ```bash
-cat ~/Library/LaunchAgents/com.user.homebrew-config.plist
+cat ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
 ```
 
 **Disable schedule:**
 
 ```bash
-launchctl unload ~/Library/LaunchAgents/com.user.homebrew-config.plist
+launchctl unload ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
 ```
 
 **Enable schedule:**
 
 ```bash
-launchctl load ~/Library/LaunchAgents/com.user.homebrew-config.plist
+launchctl load ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
 ```
 
 **Remove schedule:**
 
 ```bash
-launchctl unload ~/Library/LaunchAgents/com.user.homebrew-config.plist
-rm ~/Library/LaunchAgents/com.user.homebrew-config.plist
+launchctl unload ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
+rm ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
 ```
 
 ## Logs
@@ -362,8 +362,8 @@ Solution: The script automatically detects its installation path. If you move th
 
 ```bash
 brew-config.sh --generate-plist
-launchctl unload ~/Library/LaunchAgents/com.user.homebrew-config.plist
-launchctl load ~/Library/LaunchAgents/com.user.homebrew-config.plist
+launchctl unload ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
+launchctl load ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
 ```
 
 **Issue: Plist generation succeeds but launchctl load fails**
@@ -379,13 +379,13 @@ Solutions:
 2. Unload the existing plist first:
 
    ```bash
-   launchctl unload ~/Library/LaunchAgents/com.user.homebrew-config.plist
-   launchctl load ~/Library/LaunchAgents/com.user.homebrew-config.plist
+   launchctl unload ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
+   launchctl load ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
    ```
 
 3. Verify plist syntax:
    ```bash
-   plutil -lint ~/Library/LaunchAgents/com.user.homebrew-config.plist
+   plutil -lint ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
    ```
 
 ### Common Issues
@@ -449,8 +449,8 @@ Solutions:
 
 3. Reload the job:
    ```bash
-   launchctl unload ~/Library/LaunchAgents/com.user.homebrew-config.plist
-   launchctl load ~/Library/LaunchAgents/com.user.homebrew-config.plist
+   launchctl unload ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
+   launchctl load ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
    ```
 
 **Issue: Log files growing too large**
@@ -496,13 +496,13 @@ To completely remove the script:
 
 ```bash
 # 1. Unload launchd job (if scheduled)
-launchctl unload ~/Library/LaunchAgents/com.user.homebrew-config.plist
+launchctl unload ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
 
 # 2. Remove installed files
 rm ~/bin/brew-config.sh
 rm -rf ~/.config/homebrew-config
 rm -rf ~/.local/share/homebrew-config
-rm ~/Library/LaunchAgents/com.user.homebrew-config.plist
+rm ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
 
 # 3. (Optional) Remove Brewfile
 rm ~/Config/Brewfile
