@@ -29,9 +29,9 @@ EOF
 chmod +x "${MACOS_DIR}/${APP_NAME}"
 
 # Convert iconset to ICNS format
-ICONSET_SOURCE="$(pwd)/icons.iconset"
+ICONSET_SOURCE="$(pwd)/icons"
 if [[ -d "${ICONSET_SOURCE}" ]]; then
-    echo "Converting icons.iconset to .icns format..."
+    echo "Converting icons to .icns format..."
     
     # Convert iconset to icns
     iconutil -c icns "${ICONSET_SOURCE}" -o "${RESOURCES_DIR}/${ICON_NAME}.icns"
@@ -42,7 +42,7 @@ if [[ -d "${ICONSET_SOURCE}" ]]; then
         echo "⚠ Warning: Failed to convert iconset to icns"
     fi
 else
-    echo "⚠ Warning: icons.iconset not found in current directory, skipping icon creation"
+    echo "⚠ Warning: icons directory not found in current directory, skipping icon creation"
 fi
 
 # Create Info.plist
