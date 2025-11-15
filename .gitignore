@@ -1,0 +1,18 @@
+# Log files
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+.DS_Store
+
+# Development artifacts
+test-output/
+*.bak
+
+# Local configuration (users should copy from .example)
+config.sh
+
+# Installation test directories
+test-install/
