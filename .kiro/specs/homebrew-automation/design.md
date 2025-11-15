@@ -12,6 +12,7 @@ The Homebrew configuration management system consists of a main bash script that
 homebrew-config/
 ├── brew-config.sh                          # Main configuration script (pure task runner)
 ├── install.sh                              # Installation and deployment script
+├── uninstall.sh                            # Uninstallation script
 ├── Homebrew Config Automation.app/         # Pre-built application bundle
 │   └── Contents/
 │       ├── Info.plist                      # Bundle metadata
@@ -585,12 +586,35 @@ Each test script will:
 
 ### Uninstallation
 
-1. Unload launchd job: `launchctl unload ~/Library/LaunchAgents/com.emkaytec.homebrewconfig.plist`
-2. Remove installed files:
-   - Script: `~/bin/brew-config.sh`
-   - Config: `~/.config/homebrew-config/`
-   - Logs: `~/.local/share/homebrew-config/`
-   - Plist: `~/Library/LaunchAgents/com.emkaytec.homebrewconfig.plist`
+The uninstall.sh script automates the removal of all installed components.
+
+**Functions:**
+
+- `unload_launchd()` - Unload the launchd job if loaded
+- `remove_app_bundle()` - Remove application bundle from ~/Applications/
+- `remove_plist()` - Remove launchd plist file
+- `remove_script()` - Remove brew-config.sh from installation location
+- `remove_config()` - Remove configuration directory
+- `remove_logs()` - Remove log directory and files
+- `verify_uninstallation()` - Confirm all components removed
+- `display_summary()` - Show what was removed
+
+**Uninstallation Flow:**
+
+1. Check if launchd job is loaded and unload it
+2. Remove application bundle from ~/Applications/
+3. Remove launchd plist from ~/Library/LaunchAgents/
+4. Remove brew-config.sh from ~/bin/
+5. Remove configuration directory ~/.config/homebrew-config/
+6. Remove log directory ~/.local/share/homebrew-config/
+7. Display summary of removed components
+8. Preserve Brewfile and destination directory
+
+**Preserved Items:**
+
+- Brewfile in destination directory (default: ~/Config/Brewfile)
+- Destination directory itself
+- Any other files in destination directory
 
 ### Updates
 

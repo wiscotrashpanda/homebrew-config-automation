@@ -206,3 +206,21 @@ This document specifies the requirements for a Homebrew automation script that m
 3. THE launchd plist filename SHALL be com.emkaytec.homebrewconfig.plist
 4. THE Installation Script SHALL generate the plist with the Emkaytec bundle identifier
 5. THE documentation SHALL reference the Emkaytec bundle identifier in all examples and instructions
+
+### Requirement 16
+
+**User Story:** As a user, I want an uninstall script that removes the automation application from my local machine, so that I can cleanly remove the system when no longer needed.
+
+#### Acceptance Criteria
+
+1. THE Script repository SHALL include an uninstall script that removes all installed components
+2. WHEN the uninstall script executes, THE uninstall script SHALL unload the launchd job if it is currently loaded
+3. WHEN the uninstall script executes, THE uninstall script SHALL remove the application bundle from the Applications directory
+4. WHEN the uninstall script executes, THE uninstall script SHALL remove the launchd plist file from LaunchAgents directory
+5. WHEN the uninstall script executes, THE uninstall script SHALL remove the brew-config.sh script from the installation location
+6. WHEN the uninstall script executes, THE uninstall script SHALL remove the configuration directory and files
+7. WHEN the uninstall script executes, THE uninstall script SHALL remove the log directory and all log files
+8. THE uninstall script SHALL NOT remove the Brewfile from the destination directory
+9. THE uninstall script SHALL NOT remove the destination directory itself
+10. WHEN the uninstall script completes, THE uninstall script SHALL display a summary of removed components
+11. IF any removal operation fails, THEN THE uninstall script SHALL log the error and continue with remaining operations

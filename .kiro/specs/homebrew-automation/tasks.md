@@ -233,3 +233,33 @@
   - Confirm brew-config.sh has no scheduling logic
   - Verify app bundle displays correctly in System Settings with icon
   - _Requirements: 12.6, 12.7, 12.8, 7.5, 8.1, 8.4, 10.7, 14.7_
+
+- [x] 16. Create uninstall script
+
+  - [x] 16.1 Implement core uninstallation logic
+
+    - Write uninstall.sh script with unload_launchd() function to unload the launchd job
+    - Write remove_app_bundle() function to remove application bundle from ~/Applications/
+    - Write remove_plist() function to remove launchd plist from ~/Library/LaunchAgents/
+    - Write remove_script() function to remove brew-config.sh from ~/bin/
+    - _Requirements: 16.1, 16.2, 16.3, 16.4, 16.5_
+
+  - [x] 16.2 Implement configuration and log cleanup
+
+    - Write remove_config() function to remove ~/.config/homebrew-config/ directory
+    - Write remove_logs() function to remove ~/.local/share/homebrew-config/ directory
+    - Ensure Brewfile and destination directory are NOT removed
+    - _Requirements: 16.6, 16.7, 16.8, 16.9_
+
+  - [x] 16.3 Add uninstallation validation and reporting
+
+    - Write verify_uninstallation() function to confirm all components are removed
+    - Write display_summary() function to show what was removed
+    - Add error handling to continue on failures and report them
+    - _Requirements: 16.10, 16.11_
+
+  - [ ]\* 16.4 Update documentation for uninstallation
+    - Update README.md with uninstallation instructions
+    - Document what is removed and what is preserved
+    - Add troubleshooting for common uninstallation issues
+    - _Requirements: 16.10_
