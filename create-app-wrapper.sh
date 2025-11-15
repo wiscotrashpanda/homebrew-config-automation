@@ -28,21 +28,20 @@ EOF
 
 chmod +x "${MACOS_DIR}/${APP_NAME}"
 
-# Convert iconset to ICNS format
-ICONSET_SOURCE="$(pwd)/icons"
-if [[ -d "${ICONSET_SOURCE}" ]]; then
-    echo "Converting icons to .icns format..."
+# Copy ICNS file to app bundle
+ICON_SOURCE="$(pwd)/AppIcon.icns"
+if [[ -f "${ICON_SOURCE}" ]]; then
+    echo "Copying AppIcon.icns to app bundle..."
     
-    # Convert iconset to icns
-    iconutil -c icns "${ICONSET_SOURCE}" -o "${RESOURCES_DIR}/${ICON_NAME}.icns"
+    cp "${ICON_SOURCE}" "${RESOURCES_DIR}/${ICON_NAME}.icns"
     
     if [[ $? -eq 0 ]]; then
-        echo "✓ Icon converted and added to app bundle"
+        echo "✓ Icon added to app bundle"
     else
-        echo "⚠ Warning: Failed to convert iconset to icns"
+        echo "⚠ Warning: Failed to copy icon file"
     fi
 else
-    echo "⚠ Warning: icons directory not found in current directory, skipping icon creation"
+    echo "⚠ Warning: AppIcon.icns not found in current directory, skipping icon"
 fi
 
 # Create Info.plist
