@@ -734,3 +734,100 @@ Automated update from homebrew-config script"
         return 1
     fi
 }
+
+#######################################
+# Main function - orchestrates all operations
+# Entry point for the script
+# Arguments:
+#   $@ - Command-line arguments
+# Returns:
+#   0 on success, 1-3 on various failures
+#######################################
+main() {
+    local exit_code=0
+    local execution_mode="manual"
+    
+    # Detect if running from launchd (scheduled)
+    if [[ -n "${LAUNCHED_BY_LAUNCHD:-}" ]] || [[ "${TERM:-}" == "dumb" ]]; then
+        execution_mode="scheduled"
+    fi
+    
+    # Parse command-line arguments first (before logging setup)
+    if ! parse_arguments "$@"; then
+        exit 2
+    fi
+    
+    # Load configuration (sets LOG_DIR and other variables)
+    load_configuration
+    
+    # Initialize logging
+    if ! setup_logging; then
+        echo "FATAL: Failed to initialize logging" >&2
+        exit 1
+    fi
+    
+    # Log script start
+    log_message "INFO" "=========================================="
+    log_message "INFO" "Homebrew Configuration Script v${SCRIPT_VERSION}"
+    log_message "INFO" "Execution mode: ${execution_mode}"
+    log_message "INFO" "=========================================="
+    
+    # Validate configuration
+    if ! validate_configuration; then
+        log_message "FATAL" "Configuration validation failed"
+        exit 2
+    fi
+    
+    # Check if macOS
+    if [[ "$(uname)" != "Darwin" ]]; then
+        log_message "FATAL" "This script is designed for macOS only"
+        exit 1
+    fi
+    
+    # Check Homebrew installation
+    if ! check_homebrew; then
+        log_message "INFO" "Homebrew not found, installing..."
+        if ! install_homebrew; then
+            log_message "FATAL" "Failed to install Homebrew"
+            exit 1
+        fi
+    else
+        # Homebrew is installed, run upgrade
+        log_message "INFO" "Homebrew is installed, running upgrade..."
+        if ! upgrade_homebrew; then
+            log_message "ERROR" "Homebrew upgrade failed, continuing with Brewfile generation"
+            exit_code=1  # Non-critical, continue
+        fi
+    fi
+    
+    # Generate Brewfile
+    if ! generate_brewfile; then
+        log_message "FATAL" "Failed to generate Brewfile"
+        exit 1
+    fi
+    
+    # Commit to Git if enabled
+    if ! commit_to_git; then
+        log_message "ERROR" "Git commit failed, but Brewfile was generated successfully"
+        # Non-critical, don't change exit code if it's 0
+    fi
+    
+    # Rotate logs if needed
+    rotate_logs || log_message "WARN" "Log rotation failed"
+    
+    # Log completion
+    log_message "INFO" "=========================================="
+    if [[ ${exit_code} -eq 0 ]]; then
+        log_message "INFO" "Script completed successfully"
+    else
+        log_message "INFO" "Script completed with non-critical errors"
+    fi
+    log_message "INFO" "=========================================="
+    
+    exit ${exit_code}
+}
+
+# Run main function if script is executed directly
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    main "$@"
+fi
