@@ -233,6 +233,7 @@
     - _Requirements: 11.1, 11.2, 11.3_
 
 - [ ] 15. Final integration and validation
+
   - Test complete workflow on fresh macOS installation
   - Verify all configuration options work correctly
   - Test --generate-plist option and verify plist file is correct
@@ -242,3 +243,33 @@
   - Verify all error conditions are handled properly
   - Confirm script exits cleanly after each run
   - _Requirements: 12.6, 12.7, 12.8, 7.5, 8.1, 8.4, 10.1, 10.7_
+
+- [x] 16. Create application bundle wrapper for improved System Settings display
+
+  - [x] 16.1 Create app wrapper utility script
+
+    - Write create-app-wrapper.sh script to generate macOS application bundle
+    - Create proper bundle directory structure (Contents/MacOS/Resources)
+    - Generate wrapper executable that calls brew-config.sh
+    - Create Info.plist with proper bundle metadata
+    - _Requirements: 14.1, 14.2_
+
+  - [x] 16.2 Integrate custom icon into app bundle
+
+    - Copy AppIcon.icns file to bundle Resources directory
+    - Add CFBundleIconFile key to Info.plist
+    - Ensure icon displays in Applications folder and System Settings
+    - _Requirements: 14.3, 14.4, 14.5_
+
+  - [x] 16.3 Update plist to use app wrapper
+
+    - Modify launchd plist to reference app bundle executable path
+    - Update Label to display "Homebrew Config Automation"
+    - Verify display name appears correctly in System Settings Login Items
+    - _Requirements: 14.6, 14.7_
+
+  - [x] 16.4 Update documentation for app wrapper
+    - Document create-app-wrapper.sh usage in README
+    - Add instructions for using app wrapper with launchd
+    - Update design document with app wrapper architecture
+    - _Requirements: 14.1, 14.2, 14.7_

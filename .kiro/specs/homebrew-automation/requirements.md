@@ -178,3 +178,17 @@ This document specifies the requirements for a Homebrew automation script that m
 3. THE Script repository SHALL provide a clean command or documentation for removing development artifacts
 4. THE Script repository SHALL maintain only source files, documentation, and installation scripts in version control
 5. WHEN the user installs the Script, THE installation process SHALL copy only necessary files to the target location
+
+### Requirement 14
+
+**User Story:** As a user, I want the scheduled automation to display with a recognizable name and icon in System Settings, so that I can easily identify it among other background items.
+
+#### Acceptance Criteria
+
+1. THE Script SHALL provide a utility to create an application bundle wrapper for the script
+2. WHEN the application bundle is created, THE bundle SHALL display as "Homebrew Config Automation" in System Settings
+3. THE application bundle SHALL include a custom icon file in ICNS format
+4. WHEN the icon file is present, THE Script SHALL embed the icon in the application bundle Resources directory
+5. THE application bundle SHALL reference the icon file in its Info.plist configuration
+6. THE launchd plist SHALL use the application bundle executable path instead of the raw script path
+7. WHEN displayed in System Settings Login Items, THE item SHALL show the custom icon and application name

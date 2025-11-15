@@ -12,6 +12,8 @@ The Homebrew configuration management system consists of a main bash script that
 homebrew-config/
 ├── brew-config.sh              # Main configuration script
 ├── install.sh                  # Installation script
+├── create-app-wrapper.sh       # App bundle wrapper creation utility
+├── AppIcon.icns                # Custom application icon
 ├── config.sh.example           # Example configuration file
 ├── .gitignore                  # Git ignore rules
 └── README.md                   # Documentation
@@ -272,6 +274,88 @@ After generation, the script provides instructions for loading:
 ```bash
 launchctl load ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
 ```
+
+### 8. Application Bundle Wrapper
+
+To provide a better user experience in macOS System Settings, the system includes a utility to wrap the script in an application bundle.
+
+**App Wrapper Creation:**
+
+The `create-app-wrapper.sh` utility creates a minimal macOS application bundle:
+
+```bash
+./create-app-wrapper.sh
+```
+
+**Bundle Structure:**
+
+```
+~/Applications/Homebrew Config Automation.app/
+├── Contents/
+    ├── Info.plist                    # Bundle metadata
+    ├── MacOS/
+    │   └── Homebrew Config Automation  # Wrapper executable
+    └── Resources/
+        └── AppIcon.icns              # Custom icon
+```
+
+**Wrapper Executable:**
+
+The wrapper is a simple bash script that calls the actual brew-config.sh:
+
+```bash
+#!/bin/bash
+exec "$HOME/bin/brew-config.sh" "$@"
+```
+
+**Info.plist Configuration:**
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleExecutable</key>
+    <string>Homebrew Config Automation</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.homebrewconfig.automation</string>
+    <key>CFBundleName</key>
+    <string>Homebrew Config Automation</string>
+    <key>CFBundleDisplayName</key>
+    <string>Homebrew Config Automation</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <key>LSUIElement</key>
+    <true/>
+    <key>LSBackgroundOnly</key>
+    <true/>
+</dict>
+</plist>
+```
+
+**Icon Integration:**
+
+- The utility copies `AppIcon.icns` from the project directory to the bundle's Resources folder
+- The icon file must be in ICNS format (macOS icon format)
+- The icon displays in Applications folder and System Settings
+
+**Launchd Integration:**
+
+When using the app wrapper with launchd, update the plist to reference the wrapper:
+
+```xml
+<key>ProgramArguments</key>
+<array>
+    <string>/Users/username/Applications/Homebrew Config Automation.app/Contents/MacOS/Homebrew Config Automation</string>
+</array>
+```
+
+**Benefits:**
+
+- Displays as "Homebrew Config Automation" instead of "brew-config.sh" in System Settings
+- Shows custom icon in Login Items & Extensions
+- Appears as a proper application in Applications folder
+- Maintains all functionality of the original script
 
 **Alternative: Manual cron Entry:**
 
