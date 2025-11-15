@@ -17,6 +17,12 @@ LOG_DIR=""
 MAX_LOG_SIZE=10485760  # 10MB default
 MAX_LOG_FILES=5
 
+# Global variables for configuration
+BREWFILE_DESTINATION=""
+GIT_COMMIT_ENABLED=true
+SCHEDULE_PATTERN="daily"
+CONFIG_FILE=""
+
 #######################################
 # Initialize logging system
 # Creates log directory and sets up log file
@@ -188,6 +194,271 @@ cleanup_old_logs() {
             fi
         done
     fi
+    
+    return 0
+}
+
+#######################################
+# Expand tilde and environment variables in path
+# Converts ~/ to $HOME/ and expands environment variables
+# Arguments:
+#   $1 - Path to expand
+# Outputs:
+#   Expanded path to stdout
+# Returns:
+#   0 on success
+#######################################
+expand_path() {
+    local path="$1"
+    
+    # Expand tilde to HOME
+    if [[ "${path}" =~ ^~(/|$) ]]; then
+        path="${HOME}${path#\~}"
+    fi
+    
+    # Expand environment variables
+    eval echo "${path}"
+}
+
+#######################################
+# Load configuration from file
+# Reads configuration file and sets global variables
+# Falls back to defaults if file doesn't exist or values not set
+# Globals:
+#   CONFIG_FILE - Path to configuration file
+#   BREWFILE_DESTINATION - Brewfile destination directory
+#   LOG_DIR - Log directory
+#   MAX_LOG_SIZE - Maximum log file size
+#   MAX_LOG_FILES - Maximum rotated logs to keep
+#   GIT_COMMIT_ENABLED - Whether to create Git commits
+#   SCHEDULE_PATTERN - Schedule pattern for launchd
+# Arguments:
+#   None
+# Returns:
+#   0 on success
+#######################################
+load_configuration() {
+    # Set default configuration file if not specified
+    if [[ -z "${CONFIG_FILE}" ]]; then
+        CONFIG_FILE="${HOME}/.config/homebrew-config/config.sh"
+    fi
+    
+    # Load configuration file if it exists
+    if [[ -f "${CONFIG_FILE}" ]]; then
+        # Source the configuration file
+        # shellcheck disable=SC1090
+        source "${CONFIG_FILE}"
+        log_message "INFO" "Loaded configuration from: ${CONFIG_FILE}"
+    else
+        log_message "INFO" "Configuration file not found, using defaults: ${CONFIG_FILE}"
+    fi
+    
+    # Set defaults for any unset variables
+    if [[ -z "${BREWFILE_DESTINATION}" ]]; then
+        BREWFILE_DESTINATION="${HOME}/Config"
+    fi
+    
+    if [[ -z "${LOG_DIR}" ]]; then
+        LOG_DIR="${HOME}/.local/share/homebrew-config/logs"
+    fi
+    
+    if [[ -z "${MAX_LOG_SIZE}" ]]; then
+        MAX_LOG_SIZE=10485760  # 10MB
+    fi
+    
+    if [[ -z "${MAX_LOG_FILES}" ]]; then
+        MAX_LOG_FILES=5
+    fi
+    
+    if [[ -z "${GIT_COMMIT_ENABLED}" ]]; then
+        GIT_COMMIT_ENABLED=true
+    fi
+    
+    if [[ -z "${SCHEDULE_PATTERN}" ]]; then
+        SCHEDULE_PATTERN="daily"
+    fi
+    
+    # Expand paths
+    BREWFILE_DESTINATION=$(expand_path "${BREWFILE_DESTINATION}")
+    LOG_DIR=$(expand_path "${LOG_DIR}")
+    if [[ -n "${CONFIG_FILE}" ]]; then
+        CONFIG_FILE=$(expand_path "${CONFIG_FILE}")
+    fi
+    
+    # Log configuration values
+    log_message "INFO" "Configuration - Brewfile destination: ${BREWFILE_DESTINATION}"
+    log_message "INFO" "Configuration - Log directory: ${LOG_DIR}"
+    log_message "INFO" "Configuration - Max log size: ${MAX_LOG_SIZE} bytes"
+    log_message "INFO" "Configuration - Max log files: ${MAX_LOG_FILES}"
+    log_message "INFO" "Configuration - Git commit enabled: ${GIT_COMMIT_ENABLED}"
+    log_message "INFO" "Configuration - Schedule pattern: ${SCHEDULE_PATTERN}"
+    
+    return 0
+}
+
+#######################################
+# Validate configuration values
+# Checks that required directories are writable
+# Globals:
+#   BREWFILE_DESTINATION - Brewfile destination directory
+#   LOG_DIR - Log directory
+# Arguments:
+#   None
+# Returns:
+#   0 on success, 1 on validation failure
+#######################################
+validate_configuration() {
+    local validation_failed=false
+    
+    # Validate Brewfile destination is writable
+    if [[ -d "${BREWFILE_DESTINATION}" ]]; then
+        if [[ ! -w "${BREWFILE_DESTINATION}" ]]; then
+            log_message "ERROR" "Brewfile destination is not writable: ${BREWFILE_DESTINATION}"
+            validation_failed=true
+        fi
+    else
+        # Try to create the directory
+        if ! mkdir -p "${BREWFILE_DESTINATION}" 2>/dev/null; then
+            log_message "ERROR" "Cannot create Brewfile destination directory: ${BREWFILE_DESTINATION}"
+            validation_failed=true
+        else
+            log_message "INFO" "Created Brewfile destination directory: ${BREWFILE_DESTINATION}"
+        fi
+    fi
+    
+    # Validate log directory is writable
+    if [[ -d "${LOG_DIR}" ]]; then
+        if [[ ! -w "${LOG_DIR}" ]]; then
+            log_message "ERROR" "Log directory is not writable: ${LOG_DIR}"
+            validation_failed=true
+        fi
+    fi
+    
+    if [[ "${validation_failed}" == true ]]; then
+        return 1
+    fi
+    
+    return 0
+}
+
+#######################################
+# Display help message
+# Shows usage information and available options
+# Arguments:
+#   None
+# Outputs:
+#   Help text to stdout
+# Returns:
+#   0 on success
+#######################################
+show_help() {
+    cat << EOF
+Homebrew Configuration Management Script v${SCRIPT_VERSION}
+
+Automates Homebrew installation, upgrades, and Brewfile generation.
+
+USAGE:
+    brew-config.sh [OPTIONS]
+
+OPTIONS:
+    -d, --destination DIR    Brewfile destination directory
+                            Default: ~/Config
+    
+    -s, --schedule PATTERN   Setup scheduled execution
+                            Options: daily, weekly, or interval in seconds
+                            Default: daily
+    
+    -c, --config FILE       Configuration file path
+                            Default: ~/.config/homebrew-config/config.sh
+    
+    -h, --help             Show this help message
+    
+    -v, --version          Show version information
+
+EXAMPLES:
+    # Run with default settings
+    brew-config.sh
+    
+    # Specify custom Brewfile destination
+    brew-config.sh --destination ~/Dotfiles
+    
+    # Use custom configuration file
+    brew-config.sh --config ~/my-config.sh
+    
+    # Setup daily scheduled execution
+    brew-config.sh --schedule daily
+
+CONFIGURATION:
+    Configuration can be set via:
+    1. Command-line arguments (highest priority)
+    2. Configuration file specified with -c
+    3. Default config file at ~/.config/homebrew-config/config.sh
+    4. Built-in defaults (lowest priority)
+
+LOGS:
+    Logs are stored in: ~/.local/share/homebrew-config/logs/
+    Log rotation occurs when files exceed 10MB
+    Maximum of 5 rotated logs are kept
+
+For more information, see the README.md file.
+EOF
+    return 0
+}
+
+#######################################
+# Parse command-line arguments
+# Processes CLI arguments and sets global variables
+# Globals:
+#   BREWFILE_DESTINATION - Brewfile destination directory
+#   SCHEDULE_PATTERN - Schedule pattern for launchd
+#   CONFIG_FILE - Configuration file path
+# Arguments:
+#   $@ - All command-line arguments
+# Returns:
+#   0 on success, 2 on invalid arguments
+#######################################
+parse_arguments() {
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -d|--destination)
+                if [[ -z "${2:-}" ]]; then
+                    echo "ERROR: --destination requires a directory path" >&2
+                    return 2
+                fi
+                BREWFILE_DESTINATION="$2"
+                shift 2
+                ;;
+            -s|--schedule)
+                if [[ -z "${2:-}" ]]; then
+                    echo "ERROR: --schedule requires a pattern (daily|weekly|INTERVAL)" >&2
+                    return 2
+                fi
+                SCHEDULE_PATTERN="$2"
+                shift 2
+                ;;
+            -c|--config)
+                if [[ -z "${2:-}" ]]; then
+                    echo "ERROR: --config requires a file path" >&2
+                    return 2
+                fi
+                CONFIG_FILE="$2"
+                shift 2
+                ;;
+            -h|--help)
+                show_help
+                exit 0
+                ;;
+            -v|--version)
+                echo "Homebrew Configuration Management Script v${SCRIPT_VERSION}"
+                exit 0
+                ;;
+            *)
+                echo "ERROR: Unknown option: $1" >&2
+                echo "Use --help for usage information" >&2
+                return 2
+                ;;
+        esac
+    done
     
     return 0
 }
