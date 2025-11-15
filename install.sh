@@ -491,16 +491,17 @@ main() {
         exit 1
     fi
     
+    # Generate launchd plist
+    echo
+    if ! setup_schedule; then
+        echo "ERROR: Plist generation failed" >&2
+        exit 1
+    fi
+    
     # Verify installation
     if ! verify_installation; then
         echo "ERROR: Installation verification failed" >&2
         exit 1
-    fi
-    
-    # Generate launchd plist
-    echo
-    if ! setup_schedule; then
-        echo "WARNING: Plist generation failed" >&2
     fi
     
     # Display installation summary
