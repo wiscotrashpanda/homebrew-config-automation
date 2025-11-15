@@ -589,3 +589,148 @@ upgrade_homebrew() {
     
     return ${upgrade_status}
 }
+
+#######################################
+# Generate Brewfile from current Homebrew configuration
+# Creates a Brewfile listing all installed packages, casks, and taps
+# Globals:
+#   BREWFILE_DESTINATION - Directory where Brewfile will be saved
+# Arguments:
+#   None
+# Returns:
+#   0 on success, 1 on failure (critical)
+#######################################
+generate_brewfile() {
+    log_message "INFO" "Generating Brewfile..."
+    
+    # Ensure destination directory exists
+    if [[ ! -d "${BREWFILE_DESTINATION}" ]]; then
+        log_message "INFO" "Creating Brewfile destination directory: ${BREWFILE_DESTINATION}"
+        if ! mkdir -p "${BREWFILE_DESTINATION}" 2>/dev/null; then
+            log_message "FATAL" "Failed to create destination directory: ${BREWFILE_DESTINATION}"
+            return 1
+        fi
+    fi
+    
+    # Verify destination is writable
+    if [[ ! -w "${BREWFILE_DESTINATION}" ]]; then
+        log_message "FATAL" "Destination directory is not writable: ${BREWFILE_DESTINATION}"
+        return 1
+    fi
+    
+    # Generate Brewfile using brew bundle dump
+    local brewfile_path="${BREWFILE_DESTINATION}/Brewfile"
+    
+    if brew bundle dump --file="${brewfile_path}" --force 2>&1 | while IFS= read -r line; do
+        log_message "INFO" "  ${line}"
+    done; then
+        log_message "INFO" "Brewfile generated successfully: ${brewfile_path}"
+        
+        # Log file size and timestamp
+        local file_size
+        if [[ "$(uname)" == "Darwin" ]]; then
+            file_size=$(stat -f%z "${brewfile_path}" 2>/dev/null || echo "unknown")
+        else
+            file_size=$(stat -c%s "${brewfile_path}" 2>/dev/null || echo "unknown")
+        fi
+        
+        local timestamp
+        timestamp=$(date -u +"%Y-%m-%dT%H:%M:%S%z")
+        
+        log_message "INFO" "Brewfile size: ${file_size} bytes"
+        log_message "INFO" "Brewfile saved at: ${timestamp}"
+        
+        return 0
+    else
+        log_message "FATAL" "Failed to generate Brewfile"
+        return 1
+    fi
+}
+
+#######################################
+# Check if directory is a Git repository
+# Verifies if the destination directory is under Git version control
+# Arguments:
+#   $1 - Directory path to check
+# Returns:
+#   0 if it's a Git repository, 1 if not
+#######################################
+is_git_repository() {
+    local dir="$1"
+    
+    if git -C "${dir}" rev-parse --git-dir &> /dev/null; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+#######################################
+# Commit Brewfile changes to Git
+# Creates a Git commit if Brewfile has changes
+# Globals:
+#   BREWFILE_DESTINATION - Directory containing Brewfile
+#   GIT_COMMIT_ENABLED - Whether Git commits are enabled
+# Arguments:
+#   None
+# Returns:
+#   0 on success or skip, 1 on failure (non-critical)
+#######################################
+commit_to_git() {
+    # Check if Git commits are enabled
+    if [[ "${GIT_COMMIT_ENABLED}" != "true" ]]; then
+        log_message "INFO" "Git commits are disabled in configuration"
+        return 0
+    fi
+    
+    log_message "INFO" "Checking for Git repository..."
+    
+    # Check if destination is a Git repository
+    if ! is_git_repository "${BREWFILE_DESTINATION}"; then
+        log_message "WARN" "Destination is not a Git repository: ${BREWFILE_DESTINATION}"
+        log_message "WARN" "Skipping Git commit"
+        return 0
+    fi
+    
+    log_message "INFO" "Git repository detected"
+    
+    # Check if Brewfile has changes
+    if git -C "${BREWFILE_DESTINATION}" diff --quiet Brewfile 2>/dev/null; then
+        log_message "INFO" "Brewfile has no changes, skipping commit"
+        return 0
+    fi
+    
+    log_message "INFO" "Brewfile has changes, creating commit..."
+    
+    # Stage the Brewfile
+    if ! git -C "${BREWFILE_DESTINATION}" add Brewfile 2>&1 | while IFS= read -r line; do
+        log_message "INFO" "  ${line}"
+    done; then
+        log_message "ERROR" "Failed to stage Brewfile"
+        return 1
+    fi
+    
+    # Create commit with timestamp
+    local timestamp
+    timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    
+    local commit_message="Update Brewfile - ${timestamp}
+
+Automated update from homebrew-config script"
+    
+    if git -C "${BREWFILE_DESTINATION}" commit -m "${commit_message}" 2>&1 | while IFS= read -r line; do
+        log_message "INFO" "  ${line}"
+    done; then
+        log_message "INFO" "Git commit created successfully"
+        
+        # Get commit hash
+        local commit_hash
+        commit_hash=$(git -C "${BREWFILE_DESTINATION}" rev-parse --short HEAD 2>/dev/null || echo "unknown")
+        log_message "INFO" "Commit hash: ${commit_hash}"
+        
+        return 0
+    else
+        log_message "ERROR" "Failed to create Git commit"
+        return 1
+    fi
+}
