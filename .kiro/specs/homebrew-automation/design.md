@@ -10,13 +10,18 @@ The Homebrew configuration management system consists of a main bash script that
 
 ```
 homebrew-config/
-├── brew-config.sh              # Main configuration script
-├── install.sh                  # Installation script
-├── create-app-wrapper.sh       # App bundle wrapper creation utility
-├── AppIcon.icns                # Custom application icon
-├── config.sh.example           # Example configuration file
-├── .gitignore                  # Git ignore rules
-└── README.md                   # Documentation
+├── brew-config.sh                          # Main configuration script (pure task runner)
+├── install.sh                              # Installation and deployment script
+├── Homebrew Config Automation.app/         # Pre-built application bundle
+│   └── Contents/
+│       ├── Info.plist                      # Bundle metadata
+│       ├── MacOS/
+│       │   └── Homebrew Config Automation  # Wrapper executable
+│       └── Resources/
+│           └── AppIcon.icns                # Custom icon
+├── config.sh.example                       # Example configuration file
+├── .gitignore                              # Git ignore rules
+└── README.md                               # Documentation
 ```
 
 ### Execution Flow
@@ -63,7 +68,6 @@ The primary executable that orchestrates all operations.
 - `generate_brewfile()` - Create Brewfile from current configuration
 - `save_brewfile()` - Write Brewfile to destination directory
 - `commit_to_git()` - Create Git commit if applicable
-- `generate_launchd_plist()` - Create launchd plist file for scheduling
 - `setup_logging()` - Initialize log file and rotation
 - `rotate_logs()` - Manage log file rotation
 - `log_message()` - Write timestamped log entries
@@ -74,10 +78,10 @@ The primary executable that orchestrates all operations.
 The script follows a simple run-once model:
 
 1. Parse arguments and load configuration
-2. If --generate-plist flag is present, generate plist and exit
-3. Otherwise, execute all operations in sequence
-4. Exit with appropriate status code
-5. No loops, timers, or background processes
+2. Execute all operations in sequence
+3. Exit with appropriate status code
+4. No loops, timers, or background processes
+5. No scheduling or plist generation logic
 
 **Command-line Interface:**
 
@@ -87,8 +91,6 @@ brew-config.sh [OPTIONS]
 Options:
   -d, --destination DIR       Brewfile destination directory (default: ~/Config)
   -c, --config FILE           Configuration file path
-  --generate-plist            Generate launchd plist file and exit
-  --schedule-time HH:MM       Time for scheduled execution (default: 02:00)
   -h, --help                  Show help message
   -v, --version               Show version information
 ```
@@ -102,21 +104,32 @@ Options:
 
 ### 2. Installation Script (install.sh)
 
-Handles initial setup and installation of the script.
+Handles initial setup, installation, and deployment of all components.
 
 **Functions:**
 
-- `install_script()` - Copy script to installation location
+- `install_script()` - Copy brew-config.sh to installation location
+- `deploy_app_bundle()` - Copy pre-built app bundle to ~/Applications/
 - `create_config()` - Generate configuration file from template
+- `generate_plist()` - Create launchd plist referencing the app bundle
 - `verify_installation()` - Validate installation success
 
 **Installation Locations:**
 
 - Script: `~/bin/brew-config.sh` (or user-specified)
+- App Bundle: `~/Applications/Homebrew Config Automation.app/`
+- Plist: `~/Library/LaunchAgents/com.homebrewconfig.automation.plist`
 - Config: `~/.config/homebrew-config/config.sh`
 - Logs: `~/.local/share/homebrew-config/logs/`
 
-**Note:** Scheduling setup (launchd plist or cron) is left to the user and documented in the README.
+**Installation Flow:**
+
+1. Copy brew-config.sh to ~/bin/
+2. Deploy app bundle to ~/Applications/
+3. Generate launchd plist that references app bundle
+4. Create configuration directory and files
+5. Verify all components are in place
+6. Provide instructions for loading plist
 
 ### 3. Configuration System
 
@@ -229,68 +242,16 @@ Update Brewfile - YYYY-MM-DDTHH:MM:SSZ
 Automated update from homebrew-config script
 ```
 
-### 7. Scheduling Integration
+### 7. Application Bundle and Scheduling
 
-The script is designed as a single-run command that completes and exits, making it compatible with any macOS scheduling mechanism.
+The system includes a pre-built application bundle that provides a better user experience in macOS System Settings.
 
-**Plist Generation:**
+**Pre-built Bundle Structure:**
 
-The script includes a `--generate-plist` option that creates a launchd plist file:
-
-```bash
-brew-config.sh --generate-plist --schedule-time 02:00
-```
-
-This generates `~/Library/LaunchAgents/com.homebrewconfig.automation.plist`:
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>Homebrew Config Automation</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>/Users/username/bin/brew-config.sh</string>
-    </array>
-    <key>StartCalendarInterval</key>
-    <dict>
-        <key>Hour</key>
-        <integer>2</integer>
-        <key>Minute</key>
-        <integer>0</integer>
-    </dict>
-    <key>StandardOutPath</key>
-    <string>/Users/username/.local/share/homebrew-config/logs/launchd-stdout.log</string>
-    <key>StandardErrorPath</key>
-    <string>/Users/username/.local/share/homebrew-config/logs/launchd-stderr.log</string>
-</dict>
-</plist>
-```
-
-After generation, the script provides instructions for loading:
-
-```bash
-launchctl load ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
-```
-
-### 8. Application Bundle Wrapper
-
-To provide a better user experience in macOS System Settings, the system includes a utility to wrap the script in an application bundle.
-
-**App Wrapper Creation:**
-
-The `create-app-wrapper.sh` utility creates a minimal macOS application bundle:
-
-```bash
-./create-app-wrapper.sh
-```
-
-**Bundle Structure:**
+The repository includes a complete application bundle:
 
 ```
-~/Applications/Homebrew Config Automation.app/
+Homebrew Config Automation.app/
 ├── Contents/
     ├── Info.plist                    # Bundle metadata
     ├── MacOS/
@@ -301,7 +262,7 @@ The `create-app-wrapper.sh` utility creates a minimal macOS application bundle:
 
 **Wrapper Executable:**
 
-The wrapper is a simple bash script that calls the actual brew-config.sh:
+The wrapper is a simple bash script that calls the installed brew-config.sh:
 
 ```bash
 #!/bin/bash
@@ -323,6 +284,10 @@ exec "$HOME/bin/brew-config.sh" "$@"
     <string>Homebrew Config Automation</string>
     <key>CFBundleDisplayName</key>
     <string>Homebrew Config Automation</string>
+    <key>CFBundleVersion</key>
+    <string>1.0.0</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>LSUIElement</key>
@@ -333,44 +298,49 @@ exec "$HOME/bin/brew-config.sh" "$@"
 </plist>
 ```
 
-**Icon Integration:**
+**Launchd Plist Generation:**
 
-- The utility copies `AppIcon.icns` from the project directory to the bundle's Resources folder
-- The icon file must be in ICNS format (macOS icon format)
-- The icon displays in Applications folder and System Settings
-
-**Launchd Integration:**
-
-When using the app wrapper with launchd, update the plist to reference the wrapper:
+The installation script generates a launchd plist that references the deployed app bundle:
 
 ```xml
-<key>ProgramArguments</key>
-<array>
-    <string>/Users/username/Applications/Homebrew Config Automation.app/Contents/MacOS/Homebrew Config Automation</string>
-</array>
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.homebrewconfig.automation</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/username/Applications/Homebrew Config Automation.app/Contents/MacOS/Homebrew Config Automation</string>
+    </array>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>2</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>/Users/username/.local/share/homebrew-config/logs/launchd-stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/username/.local/share/homebrew-config/logs/launchd-stderr.log</string>
+</dict>
+</plist>
 ```
+
+**Deployment Flow:**
+
+1. Installation script copies pre-built app bundle to ~/Applications/
+2. Installation script generates plist referencing the app bundle
+3. User loads plist with: `launchctl load ~/Library/LaunchAgents/com.homebrewconfig.automation.plist`
+4. Scheduled execution runs via app bundle wrapper
 
 **Benefits:**
 
-- Displays as "Homebrew Config Automation" instead of "brew-config.sh" in System Settings
+- Displays as "Homebrew Config Automation" in System Settings
 - Shows custom icon in Login Items & Extensions
-- Appears as a proper application in Applications folder
-- Maintains all functionality of the original script
-
-**Alternative: Manual cron Entry:**
-
-Users can also use cron:
-
-```
-0 2 * * * /Users/username/bin/brew-config.sh >> /Users/username/.local/share/homebrew-config/logs/cron.log 2>&1
-```
-
-**Script Behavior:**
-
-- Script executes all operations in sequence
-- Script exits immediately upon completion
-- No loops, sleeps, or timing mechanisms in the script
-- Suitable for any external scheduler
+- Appears as proper application in Applications folder
+- Clean separation: brew-config.sh is pure task runner, no scheduling logic
 
 ## Data Models
 

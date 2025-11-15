@@ -118,24 +118,26 @@ This document specifies the requirements for a Homebrew automation script that m
 #### Acceptance Criteria
 
 1. THE Script SHALL execute all operations when invoked directly from the command line
-2. THE Script SHALL accept command-line arguments to override default configuration values
+2. THE Script SHALL accept command-line arguments to override default configuration values for destination directory and configuration file path
 3. WHEN the Script completes, THE Script SHALL exit immediately without waiting or looping
 4. THE Script SHALL provide a help option that displays available command-line arguments and usage information
 5. THE Script SHALL log each execution with a timestamp
+6. THE Script SHALL NOT accept any scheduling-related command-line arguments
 
 ### Requirement 10
 
-**User Story:** As a user, I want the script to generate a launchd plist file for me, so that I can easily set up scheduled execution without manually creating the configuration.
+**User Story:** As a user, I want the installation process to deploy a pre-built application bundle with a launchd plist file, so that I can easily set up scheduled execution with a recognizable name and icon in System Settings.
 
 #### Acceptance Criteria
 
-1. THE Script SHALL provide a command-line option to generate a launchd plist file
-2. WHEN the plist generation option is invoked, THE Script SHALL create a plist file with the correct script path and schedule
-3. THE Script SHALL save the generated plist to the user's LaunchAgents directory
-4. THE Script SHALL support specifying the schedule time via command-line arguments
-5. WHEN the plist is generated, THE Script SHALL provide instructions for loading it with launchctl
-6. THE Script SHALL NOT automatically load the plist into launchd
-7. THE Script SHALL exit after generating the plist without executing other operations
+1. THE repository SHALL include a pre-built application bundle with proper structure and icon
+2. THE Installation Script SHALL copy the application bundle to the user's Applications directory
+3. THE Installation Script SHALL generate a launchd plist file that references the deployed application bundle executable
+4. THE Installation Script SHALL save the generated plist to the user's LaunchAgents directory
+5. THE Installation Script SHALL configure the plist with a default schedule time of 02:00
+6. WHEN the plist is generated, THE Installation Script SHALL provide instructions for loading it with launchctl
+7. THE Installation Script SHALL NOT automatically load the plist into launchd
+8. THE brew configuration script SHALL NOT contain any plist generation or scheduling logic
 
 ### Requirement 11
 
@@ -185,10 +187,10 @@ This document specifies the requirements for a Homebrew automation script that m
 
 #### Acceptance Criteria
 
-1. THE Script SHALL provide a utility to create an application bundle wrapper for the script
-2. WHEN the application bundle is created, THE bundle SHALL display as "Homebrew Config Automation" in System Settings
-3. THE application bundle SHALL include a custom icon file in ICNS format
-4. WHEN the icon file is present, THE Script SHALL embed the icon in the application bundle Resources directory
-5. THE application bundle SHALL reference the icon file in its Info.plist configuration
-6. THE launchd plist SHALL use the application bundle executable path instead of the raw script path
+1. THE repository SHALL include a pre-built application bundle named "Homebrew Config Automation.app"
+2. THE application bundle SHALL display as "Homebrew Config Automation" in System Settings
+3. THE application bundle SHALL include a custom icon file in ICNS format in its Resources directory
+4. THE application bundle SHALL include a proper Info.plist with bundle identifier and display name
+5. THE application bundle SHALL contain a wrapper executable that calls the installed brew-config.sh script
+6. THE launchd plist SHALL reference the application bundle executable path
 7. WHEN displayed in System Settings Login Items, THE item SHALL show the custom icon and application name

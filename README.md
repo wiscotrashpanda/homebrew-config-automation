@@ -10,7 +10,7 @@ This tool provides automated management of your Homebrew installation:
 - **Automatic Upgrades**: Keeps Homebrew and packages up-to-date
 - **Brewfile Generation**: Creates a Brewfile listing all installed packages
 - **Git Integration**: Automatically commits Brewfile changes
-- **Scheduled Execution**: Optional automated runs via launchd
+- **Scheduled Execution**: Optional automated runs via launchd with application bundle
 - **Comprehensive Logging**: Detailed logs with automatic rotation
 
 ## Prerequisites
@@ -29,20 +29,24 @@ No additional dependencies required - the script uses only tools available in a 
 ```bash
 # Clone or download this repository
 git clone <repository-url>
-cd homebrew-config
+cd homebrew-config-automation
 
 # Run the installation script
 ./install.sh
 ```
+
+The installation script will:
+
+1. Copy `brew-config.sh` to `~/bin/`
+2. Deploy the application bundle to `~/Applications/`
+3. Generate a launchd plist file (default schedule: daily at 02:00)
+4. Create configuration directory and files
 
 ### Custom Installation
 
 ```bash
 # Install to a custom directory
 ./install.sh --install-dir /usr/local/bin
-
-# Install with daily scheduled execution
-./install.sh --schedule daily
 
 # Install with custom configuration directory
 ./install.sh --config-dir ~/.my-config
@@ -52,16 +56,16 @@ cd homebrew-config
 
 - `-i, --install-dir DIR` - Installation directory for script (default: `~/bin`)
 - `-c, --config-dir DIR` - Configuration directory (default: `~/.config/homebrew-config`)
-- `-s, --schedule PATTERN` - Setup scheduled execution (daily|weekly|INTERVAL)
 - `-h, --help` - Show help message
 
 ### What Gets Installed
 
-- **Script**: `~/bin/brew-config.sh` (or your specified directory)
+- **Script**: `~/bin/brew-config.sh`
+- **App Bundle**: `~/Applications/Homebrew Config Automation.app`
+- **Plist**: `~/Library/LaunchAgents/com.homebrewconfig.automation.plist`
 - **Configuration**: `~/.config/homebrew-config/config.sh`
 - **Example Config**: `~/.config/homebrew-config/config.sh.example`
 - **Logs**: `~/.local/share/homebrew-config/logs/`
-- **Launchd Plist** (if scheduled): `~/Library/LaunchAgents/com.homebrewconfig.automation.plist`
 
 ## Configuration
 
@@ -84,9 +88,6 @@ MAX_LOG_FILES=5
 
 # Enable/disable Git commits
 GIT_COMMIT_ENABLED=true
-
-# Schedule pattern (for launchd setup)
-SCHEDULE_PATTERN="daily"
 ```
 
 ### Configuration Parameters
@@ -98,7 +99,6 @@ SCHEDULE_PATTERN="daily"
 | `MAX_LOG_SIZE`         | Maximum log file size in bytes    | `10485760` (10MB)                     |
 | `MAX_LOG_FILES`        | Number of rotated logs to keep    | `5`                                   |
 | `GIT_COMMIT_ENABLED`   | Enable automatic Git commits      | `true`                                |
-| `SCHEDULE_PATTERN`     | Schedule for launchd              | `daily`                               |
 
 ### Configuration Precedence
 
@@ -107,8 +107,7 @@ Configuration is loaded in this order (highest to lowest priority):
 1. Command-line arguments
 2. Configuration file specified with `-c`
 3. Default configuration file (`~/.config/homebrew-config/config.sh`)
-4. Environment variables
-5. Built-in defaults
+4. Built-in defaults
 
 ### Modifying Configuration After Installation
 
@@ -120,7 +119,7 @@ Configuration is loaded in this order (highest to lowest priority):
 
 2. Changes take effect on the next script execution
 
-3. To change the schedule, edit the plist and reload:
+3. To change the schedule time, edit the plist and reload:
 
    ```bash
    # Edit the plist
@@ -157,10 +156,7 @@ brew-config.sh --version
 ### Command-Line Options
 
 - `-d, --destination DIR` - Brewfile destination directory
-- `-s, --schedule PATTERN` - Setup scheduled execution
 - `-c, --config FILE` - Configuration file path
-- `--generate-plist` - Generate launchd plist file for scheduled execution
-- `--schedule-time HH:MM` - Time for scheduled execution (24-hour format, default: 02:00)
 - `-h, --help` - Show help message
 - `-v, --version` - Show version information
 
@@ -174,13 +170,6 @@ brew-config.sh --version
 brew-config.sh
 ```
 
-**Daily automated updates:**
-
-```bash
-# Install with daily schedule
-./install.sh --schedule daily
-```
-
 **Custom Brewfile location for dotfiles:**
 
 ```bash
@@ -188,85 +177,57 @@ brew-config.sh
 brew-config.sh --destination ~/dotfiles
 ```
 
-**Set up scheduled execution at a specific time:**
-
-```bash
-# Generate plist for daily execution at 3:30 AM
-brew-config.sh --generate-plist --schedule-time 03:30
-
-# Load the plist
-launchctl load ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
-```
-
-**Weekly updates with custom interval:**
-
-```bash
-# Install with weekly schedule
-./install.sh --schedule weekly
-```
-
 ## Scheduling
 
 ### Setting Up Scheduled Execution
 
-Scheduled execution uses macOS launchd to run the script automatically. You can set up scheduling in two ways:
+The installation script automatically generates a launchd plist file configured for daily execution at 02:00. The plist references the deployed application bundle, which appears as "Homebrew Config Automation" in System Settings.
 
-#### Option 1: Using --generate-plist (Recommended)
-
-The easiest way to set up scheduled execution is to use the built-in plist generator:
-
-```bash
-# Generate plist for daily execution at 2:00 AM (default)
-brew-config.sh --generate-plist
-
-# Generate plist for daily execution at a custom time
-brew-config.sh --generate-plist --schedule-time 03:30
-
-# Generate plist for daily execution at 6:00 AM
-brew-config.sh --generate-plist --schedule-time 06:00
-```
-
-After generating the plist, load it with launchctl:
+**To activate scheduled execution:**
 
 ```bash
 launchctl load ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
 ```
 
-The `--generate-plist` option will:
-
-- Create a properly formatted plist file
-- Use the script's actual installation path
-- Set up logging for launchd output
-- Display instructions for loading the plist
-
-#### Option 2: During Installation
+**To deactivate:**
 
 ```bash
-./install.sh --schedule daily
+launchctl unload ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
 ```
 
-#### Option 3: Manual Setup
+### Customizing the Schedule
+
+To change the schedule time, edit the plist file:
 
 ```bash
-# Create and load the plist manually
-# (See Configuration section above)
+nano ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
 ```
 
-### Schedule Patterns
+Change the `Hour` and `Minute` values in the `StartCalendarInterval` section:
 
-| Pattern  | Description                  | Example             |
-| -------- | ---------------------------- | ------------------- |
-| `daily`  | Runs at 2:00 AM every day    | `--schedule daily`  |
-| `weekly` | Runs at 2:00 AM every Sunday | `--schedule weekly` |
-| `3600`   | Runs every hour (in seconds) | `--schedule 3600`   |
-| `86400`  | Runs every 24 hours          | `--schedule 86400`  |
+```xml
+<key>StartCalendarInterval</key>
+<dict>
+    <key>Hour</key>
+    <integer>3</integer>  <!-- Change to desired hour (0-23) -->
+    <key>Minute</key>
+    <integer>30</integer>  <!-- Change to desired minute (0-59) -->
+</dict>
+```
+
+Then reload the plist:
+
+```bash
+launchctl unload ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
+launchctl load ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
+```
 
 ### Managing Scheduled Execution
 
 **Check if running:**
 
 ```bash
-launchctl list | grep homebrew-config
+launchctl list | grep homebrewconfig
 ```
 
 **View schedule:**
@@ -275,24 +236,20 @@ launchctl list | grep homebrew-config
 cat ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
 ```
 
-**Disable schedule:**
-
-```bash
-launchctl unload ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
-```
-
-**Enable schedule:**
-
-```bash
-launchctl load ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
-```
-
 **Remove schedule:**
 
 ```bash
 launchctl unload ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
 rm ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
 ```
+
+### Application Bundle
+
+The scheduled execution uses an application bundle (`Homebrew Config Automation.app`) that:
+
+- Displays with a recognizable name and icon in System Settings
+- Appears in Login Items & Extensions
+- Wraps the brew-config.sh script for clean execution
 
 ## Logs
 
@@ -340,53 +297,6 @@ cat ~/.local/share/homebrew-config/logs/launchd-stdout.log
 ```
 
 ## Troubleshooting
-
-### Plist Generation Issues
-
-**Issue: --generate-plist fails with "Invalid schedule time format"**
-
-Solution: Ensure time is in HH:MM format (24-hour)
-
-```bash
-# Correct format
-brew-config.sh --generate-plist --schedule-time 03:30
-
-# Incorrect formats
-brew-config.sh --generate-plist --schedule-time 3:30    # Missing leading zero
-brew-config.sh --generate-plist --schedule-time 15:30PM # Don't use AM/PM
-```
-
-**Issue: Generated plist doesn't use the correct script path**
-
-Solution: The script automatically detects its installation path. If you move the script after generating the plist, regenerate it:
-
-```bash
-brew-config.sh --generate-plist
-launchctl unload ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
-launchctl load ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
-```
-
-**Issue: Plist generation succeeds but launchctl load fails**
-
-Solutions:
-
-1. Check if a plist with the same name is already loaded:
-
-   ```bash
-   launchctl list | grep homebrew-config
-   ```
-
-2. Unload the existing plist first:
-
-   ```bash
-   launchctl unload ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
-   launchctl load ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
-   ```
-
-3. Verify plist syntax:
-   ```bash
-   plutil -lint ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
-   ```
 
 ### Common Issues
 
@@ -438,7 +348,7 @@ Solutions:
 1. Check if launchd job is loaded:
 
    ```bash
-   launchctl list | grep homebrew-config
+   launchctl list | grep homebrewconfig
    ```
 
 2. Check launchd logs:
@@ -448,6 +358,22 @@ Solutions:
    ```
 
 3. Reload the job:
+   ```bash
+   launchctl unload ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
+   launchctl load ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
+   ```
+
+**Issue: Application bundle not appearing in System Settings**
+
+Solution: The bundle should appear automatically. If not, try:
+
+1. Verify the bundle exists:
+
+   ```bash
+   ls -la ~/Applications/Homebrew\ Config\ Automation.app
+   ```
+
+2. Reload the plist:
    ```bash
    launchctl unload ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
    launchctl load ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
@@ -495,14 +421,15 @@ MAX_LOG_FILES=3
 To completely remove the script:
 
 ```bash
-# 1. Unload launchd job (if scheduled)
+# 1. Unload launchd job
 launchctl unload ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
 
 # 2. Remove installed files
 rm ~/bin/brew-config.sh
+rm -rf ~/Applications/Homebrew\ Config\ Automation.app
+rm ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
 rm -rf ~/.config/homebrew-config
 rm -rf ~/.local/share/homebrew-config
-rm ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
 
 # 3. (Optional) Remove Brewfile
 rm ~/Config/Brewfile
@@ -515,13 +442,29 @@ Note: This does not uninstall Homebrew itself. To uninstall Homebrew, see: https
 ### Project Structure
 
 ```
-homebrew-config/
-├── brew-config.sh          # Main script
-├── install.sh              # Installation script
-├── config.sh.example       # Example configuration
-├── .gitignore             # Git ignore rules
-└── README.md              # This file
+homebrew-config-automation/
+├── brew-config.sh                          # Main script (pure task runner)
+├── install.sh                              # Installation and deployment script
+├── Homebrew Config Automation.app/         # Pre-built application bundle
+│   └── Contents/
+│       ├── Info.plist                      # Bundle metadata
+│       ├── MacOS/
+│       │   └── Homebrew Config Automation  # Wrapper executable
+│       └── Resources/
+│           └── AppIcon.icns                # Custom icon
+├── config.sh.example                       # Example configuration
+├── .gitignore                             # Git ignore rules
+└── README.md                              # This file
 ```
+
+### Architecture
+
+The system consists of:
+
+- **brew-config.sh**: Pure task runner that executes operations and exits
+- **Application Bundle**: Provides clean UI in System Settings with icon
+- **install.sh**: Handles deployment of all components
+- **launchd plist**: References the app bundle for scheduled execution
 
 ### Testing
 
@@ -562,6 +505,7 @@ Current version: 1.0.0
 - Automatic Homebrew installation and upgrades
 - Brewfile generation and management
 - Git integration for version control
-- Scheduled execution via launchd
+- Scheduled execution via launchd with application bundle
 - Comprehensive logging with rotation
 - Full configuration support
+- Application bundle with custom icon for System Settings visibility

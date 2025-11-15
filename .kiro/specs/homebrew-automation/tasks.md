@@ -22,7 +22,7 @@
     - Add cleanup logic to delete logs exceeding MAX_LOG_FILES count
     - _Requirements: 5.3, 5.4_
 
-- [x] 3. Implement configuration management
+- [ ] 3. Implement configuration management
 
   - [x] 3.1 Create configuration loading system
 
@@ -32,12 +32,12 @@
     - _Requirements: 4.1, 4.2, 4.3_
 
   - [x] 3.2 Implement command-line argument parsing
-    - Write parse_arguments() function to handle all CLI options
+    - Write parse_arguments() function to handle ONLY destination and config file options
     - Implement help message display with show_help() function
     - Add version information display
     - Ensure CLI arguments override configuration file values
-    - Remove any schedule-related command-line options
-    - _Requirements: 9.2, 9.4_
+    - Remove ALL schedule-related command-line options (--schedule, --generate-plist, --schedule-time)
+    - _Requirements: 9.2, 9.4, 9.6_
 
 - [x] 4. Implement Homebrew detection and installation
 
@@ -103,7 +103,8 @@
   - Implement proper exit codes (0 for success, non-zero for failures)
   - Log script start with version and timestamp
   - Ensure script exits immediately after completing all operations (no loops or waits)
-  - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 8.1, 8.4, 9.1, 9.3, 9.5, 5.5_
+  - Remove ALL plist generation logic from main() function
+  - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 8.1, 8.4, 9.1, 9.3, 9.5, 5.5, 10.8_
 
 - [x] 9. Create installation script
 
@@ -113,163 +114,122 @@
     - Copy brew-config.sh to installation location (~/bin or user-specified)
     - Create configuration directory and copy config.sh.example
     - Create log directory with proper permissions
-    - Note: Scheduling setup is left to the user (documented in README)
-    - _Requirements: 11.1, 11.2, 11.4_
+    - _Requirements: 12.1, 12.2, 12.4_
 
-  - [x] 9.2 Add installation validation
+  - [x] 9.2 Deploy pre-built application bundle
+
+    - Write deploy_app_bundle() function to copy app bundle to ~/Applications/
+    - Verify app bundle structure and permissions
+    - Ensure wrapper executable is executable
+    - _Requirements: 10.1, 10.2, 14.1, 14.5_
+
+  - [x] 9.3 Generate launchd plist
+
+    - Write generate_plist() function to create plist file
+    - Configure plist to reference deployed app bundle executable path
+    - Set default schedule time to 02:00
+    - Save plist to ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
+    - _Requirements: 10.3, 10.4, 10.5, 14.6_
+
+  - [x] 9.4 Add installation validation
     - Write verify_installation() function to check all files are in place
     - Validate script is executable
+    - Validate app bundle is deployed correctly
     - Check directory permissions
     - Output installation locations to user
-    - _Requirements: 11.3, 11.5_
+    - Provide instructions for loading plist
+    - _Requirements: 10.6, 10.7, 12.3, 12.5_
 
-- [x] 10. Implement launchd plist generation
+- [x] 10. Create pre-built application bundle
 
-  - [x] 10.1 Create plist generation function
+  - [x] 10.1 Create application bundle structure
 
-    - Write generate_launchd_plist() function to create plist file
-    - Parse --schedule-time argument to extract hour and minute
-    - Use script's actual installation path in plist
-    - Save plist to ~/Library/LaunchAgents/com.user.homebrew-config.plist
-    - _Requirements: 10.1, 10.2, 10.3, 10.4_
+    - Create directory structure: Homebrew Config Automation.app/Contents/{MacOS,Resources}
+    - Create wrapper executable script in MacOS directory
+    - Make wrapper executable with proper permissions
+    - _Requirements: 14.1, 14.5_
 
-  - [x] 10.2 Add plist generation workflow
-    - Check for --generate-plist flag in parse_arguments()
-    - When flag is present, call generate_launchd_plist() and exit
-    - Display instructions for loading plist with launchctl
-    - Do not execute normal operations when generating plist
-    - _Requirements: 10.5, 10.6, 10.7_
+  - [x] 10.2 Create Info.plist
 
-- [x] 11. Verify single-run execution model
+    - Write Info.plist with proper bundle metadata
+    - Set CFBundleIdentifier to com.homebrewconfig.automation
+    - Set CFBundleDisplayName to "Homebrew Config Automation"
+    - Configure LSUIElement and LSBackgroundOnly for background execution
+    - Reference AppIcon in CFBundleIconFile
+    - _Requirements: 14.2, 14.4_
 
+  - [x] 10.3 Add icon to bundle
+    - Copy AppIcon.icns to Resources directory
+    - Verify icon file is in proper ICNS format
+    - _Requirements: 14.3_
+
+- [x] 11. Clean up brew-config.sh to be pure task runner
+
+  - Remove generate_launchd_plist() function entirely
+  - Remove GENERATE_PLIST and SCHEDULE_TIME global variables
+  - Remove --generate-plist and --schedule-time from parse_arguments()
+  - Remove --schedule option and SCHEDULE_PATTERN variable
+  - Remove plist generation logic from main() function
+  - Update show_help() to remove all scheduling-related options
   - Ensure main() function executes all operations in sequence and exits
-  - Remove any loops, sleep statements, or timing mechanisms
   - Verify script exits with appropriate status code after completion
-  - Test that script can be invoked multiple times without conflicts
-  - _Requirements: 8.1, 8.2, 8.3, 8.4_
+  - _Requirements: 8.1, 8.2, 8.3, 8.4, 9.6, 10.8_
 
-- [x] 12. Create comprehensive documentation
+- [x] 13. Update comprehensive documentation
 
-  - [x] 12.1 Write README.md with all required sections
+  - [x] 13.1 Update README.md with new architecture
 
-    - Add overview and prerequisites sections
-    - Write detailed installation instructions
-    - Document all configuration parameters with defaults
-    - Add usage examples for common scenarios
+    - Update installation instructions to reflect app bundle deployment
+    - Remove references to --generate-plist option
+    - Document that install.sh handles all setup including plist
+    - Update usage examples to show brew-config.sh as pure task runner
     - _Requirements: 11.1, 11.2, 11.6_
 
-  - [x] 12.2 Add scheduling and troubleshooting documentation
+  - [x] 13.2 Update scheduling documentation
 
-    - Document --generate-plist option and usage
+    - Document that install.sh generates the plist automatically
     - Provide instructions for loading plist with launchctl
-    - Provide example cron entry as alternative
     - Document log file locations and rotation policy
     - Add troubleshooting section with common issues
     - Include configuration modification instructions
     - _Requirements: 11.3, 11.4, 11.5, 11.7, 11.8_
 
-  - [x] 12.3 Add inline code documentation
-    - Add function headers with descriptions and parameters
-    - Comment complex logic sections
-    - Document error messages with actionable guidance
-    - Add comments to config.sh.example explaining each option
+  - [x] 13.3 Update inline code documentation
+    - Update function headers to reflect removed plist functions
+    - Update show_help() documentation
+    - Update comments in config.sh.example
     - _Requirements: 11.1, 11.2_
 
-- [x] 13. Create test suite
+- [x] 14. Update test suite
 
-  - [x] 13.1 Write unit tests for core functions
+  - [x] 14.1 Update unit tests
 
-    - Create test-config.sh for configuration loading tests
-    - Create test-logging.sh for logging and rotation tests
-    - Test path expansion and validation logic
+    - Update test-config.sh to remove schedule-related tests
+    - Verify logging and rotation tests still work
     - _Requirements: 4.3, 5.1, 5.3_
 
-  - [x] 13.2 Write integration tests
+  - [x] 14.2 Update integration tests
 
-    - Create test-homebrew.sh for Homebrew detection and installation
-    - Create test-brewfile.sh for Brewfile generation and saving
-    - Create test-git.sh for Git integration
-    - Test error handling for critical and non-critical failures
+    - Verify test-homebrew.sh still works
+    - Verify test-brewfile.sh still works
+    - Verify test-git.sh still works
     - _Requirements: 1.1, 3.1, 6.1, 7.1_
 
-  - [x] 13.3 Create test runner and cleanup
-    - Write run-all-tests.sh to execute all test scripts
-    - Implement test environment setup and teardown
-    - Add test artifact cleanup
-    - _Requirements: 13.3_
+  - [x] 14.3 Add installation tests
+    - Create test for app bundle deployment
+    - Create test for plist generation
+    - Verify install.sh works correctly
+    - _Requirements: 10.1, 10.2, 10.3_
 
-- [x] 14. Implement --generate-plist command-line option
-
-  - [x] 14.1 Add --generate-plist flag to parse_arguments()
-
-    - Add new command-line option to accept --generate-plist flag
-    - Add --schedule-time HH:MM option to specify schedule time (default: 02:00)
-    - Update show_help() to document the new options
-    - _Requirements: 10.1, 10.2, 10.4_
-
-  - [x] 14.2 Create generate_launchd_plist() function
-
-    - Write function to generate launchd plist XML content
-    - Parse --schedule-time argument to extract hour and minute
-    - Use script's actual installation path in plist (use $0 or BASH_SOURCE)
-    - Save plist to ~/Library/LaunchAgents/com.user.homebrew-config.plist
-    - Include StandardOutPath and StandardErrorPath for launchd logs
-    - _Requirements: 10.1, 10.2, 10.3, 10.4_
-
-  - [x] 14.3 Integrate plist generation into main workflow
-
-    - Check for --generate-plist flag in main() function
-    - When flag is present, call generate_launchd_plist() and exit
-    - Display instructions for loading plist with launchctl
-    - Do not execute normal operations when generating plist
-    - Exit with status code 0 after successful generation
-    - _Requirements: 10.5, 10.6, 10.7_
-
-  - [x] 14.4 Update documentation for --generate-plist
-    - Update README.md with --generate-plist usage examples
-    - Document the --schedule-time option
-    - Provide clear instructions for loading the generated plist
-    - Add troubleshooting section for plist generation
-    - _Requirements: 11.1, 11.2, 11.3_
-
-- [ ] 15. Final integration and validation
+- [x] 15. Final integration and validation
 
   - Test complete workflow on fresh macOS installation
   - Verify all configuration options work correctly
-  - Test --generate-plist option and verify plist file is correct
-  - Test multiple consecutive manual executions
+  - Test that install.sh deploys app bundle and generates plist correctly
+  - Test multiple consecutive manual executions of brew-config.sh
   - Validate log rotation works as expected
   - Ensure Git commits are created only when Brewfile changes
   - Verify all error conditions are handled properly
-  - Confirm script exits cleanly after each run
-  - _Requirements: 12.6, 12.7, 12.8, 7.5, 8.1, 8.4, 10.1, 10.7_
-
-- [x] 16. Create application bundle wrapper for improved System Settings display
-
-  - [x] 16.1 Create app wrapper utility script
-
-    - Write create-app-wrapper.sh script to generate macOS application bundle
-    - Create proper bundle directory structure (Contents/MacOS/Resources)
-    - Generate wrapper executable that calls brew-config.sh
-    - Create Info.plist with proper bundle metadata
-    - _Requirements: 14.1, 14.2_
-
-  - [x] 16.2 Integrate custom icon into app bundle
-
-    - Copy AppIcon.icns file to bundle Resources directory
-    - Add CFBundleIconFile key to Info.plist
-    - Ensure icon displays in Applications folder and System Settings
-    - _Requirements: 14.3, 14.4, 14.5_
-
-  - [x] 16.3 Update plist to use app wrapper
-
-    - Modify launchd plist to reference app bundle executable path
-    - Update Label to display "Homebrew Config Automation"
-    - Verify display name appears correctly in System Settings Login Items
-    - _Requirements: 14.6, 14.7_
-
-  - [x] 16.4 Update documentation for app wrapper
-    - Document create-app-wrapper.sh usage in README
-    - Add instructions for using app wrapper with launchd
-    - Update design document with app wrapper architecture
-    - _Requirements: 14.1, 14.2, 14.7_
+  - Confirm brew-config.sh has no scheduling logic
+  - Verify app bundle displays correctly in System Settings with icon
+  - _Requirements: 12.6, 12.7, 12.8, 7.5, 8.1, 8.4, 10.7, 14.7_

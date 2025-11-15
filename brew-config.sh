@@ -20,10 +20,7 @@ MAX_LOG_FILES=5
 # Global variables for configuration
 BREWFILE_DESTINATION=""
 GIT_COMMIT_ENABLED=true
-SCHEDULE_PATTERN="daily"
 CONFIG_FILE=""
-GENERATE_PLIST=false
-SCHEDULE_TIME="02:00"
 
 #######################################
 # Initialize logging system
@@ -233,7 +230,6 @@ expand_path() {
 #   MAX_LOG_SIZE - Maximum log file size
 #   MAX_LOG_FILES - Maximum rotated logs to keep
 #   GIT_COMMIT_ENABLED - Whether to create Git commits
-#   SCHEDULE_PATTERN - Schedule pattern for launchd
 # Arguments:
 #   None
 # Returns:
@@ -276,10 +272,6 @@ load_configuration() {
         GIT_COMMIT_ENABLED=true
     fi
     
-    if [[ -z "${SCHEDULE_PATTERN}" ]]; then
-        SCHEDULE_PATTERN="daily"
-    fi
-    
     # Expand paths
     BREWFILE_DESTINATION=$(expand_path "${BREWFILE_DESTINATION}")
     LOG_DIR=$(expand_path "${LOG_DIR}")
@@ -293,7 +285,6 @@ load_configuration() {
     log_message "INFO" "Configuration - Max log size: ${MAX_LOG_SIZE} bytes"
     log_message "INFO" "Configuration - Max log files: ${MAX_LOG_FILES}"
     log_message "INFO" "Configuration - Git commit enabled: ${GIT_COMMIT_ENABLED}"
-    log_message "INFO" "Configuration - Schedule pattern: ${SCHEDULE_PATTERN}"
     
     return 0
 }
@@ -366,20 +357,8 @@ OPTIONS:
     -d, --destination DIR    Brewfile destination directory
                             Default: ~/Config
     
-    -s, --schedule PATTERN   Setup scheduled execution
-                            Options: daily, weekly, or interval in seconds
-                            Default: daily
-    
     -c, --config FILE       Configuration file path
                             Default: ~/.config/homebrew-config/config.sh
-    
-    --generate-plist        Generate launchd plist file for scheduled execution
-                            When used, the script generates the plist and exits
-                            without performing normal operations
-    
-    --schedule-time HH:MM   Time for scheduled execution (24-hour format)
-                            Used with --generate-plist
-                            Default: 02:00
     
     -h, --help             Show this help message
     
@@ -394,12 +373,6 @@ EXAMPLES:
     
     # Use custom configuration file
     brew-config.sh --config ~/my-config.sh
-    
-    # Generate launchd plist for daily execution at 2:00 AM
-    brew-config.sh --generate-plist
-    
-    # Generate launchd plist for daily execution at 3:30 AM
-    brew-config.sh --generate-plist --schedule-time 03:30
 
 CONFIGURATION:
     Configuration can be set via:
@@ -413,6 +386,11 @@ LOGS:
     Log rotation occurs when files exceed 10MB
     Maximum of 5 rotated logs are kept
 
+SCHEDULING:
+    To set up scheduled execution, use the install.sh script which will
+    generate a launchd plist file and deploy the application bundle.
+    See README.md for detailed scheduling instructions.
+
 For more information, see the README.md file.
 EOF
     return 0
@@ -423,10 +401,7 @@ EOF
 # Processes CLI arguments and sets global variables
 # Globals:
 #   BREWFILE_DESTINATION - Brewfile destination directory
-#   SCHEDULE_PATTERN - Schedule pattern for launchd
 #   CONFIG_FILE - Configuration file path
-#   GENERATE_PLIST - Whether to generate launchd plist
-#   SCHEDULE_TIME - Time for scheduled execution (HH:MM)
 # Arguments:
 #   $@ - All command-line arguments
 # Returns:
@@ -443,37 +418,12 @@ parse_arguments() {
                 BREWFILE_DESTINATION="$2"
                 shift 2
                 ;;
-            -s|--schedule)
-                if [[ -z "${2:-}" ]]; then
-                    echo "ERROR: --schedule requires a pattern (daily|weekly|INTERVAL)" >&2
-                    return 2
-                fi
-                SCHEDULE_PATTERN="$2"
-                shift 2
-                ;;
             -c|--config)
                 if [[ -z "${2:-}" ]]; then
                     echo "ERROR: --config requires a file path" >&2
                     return 2
                 fi
                 CONFIG_FILE="$2"
-                shift 2
-                ;;
-            --generate-plist)
-                GENERATE_PLIST=true
-                shift
-                ;;
-            --schedule-time)
-                if [[ -z "${2:-}" ]]; then
-                    echo "ERROR: --schedule-time requires a time in HH:MM format" >&2
-                    return 2
-                fi
-                # Validate time format
-                if [[ ! "$2" =~ ^([0-1][0-9]|2[0-3]):([0-5][0-9])$ ]]; then
-                    echo "ERROR: --schedule-time must be in HH:MM format (24-hour)" >&2
-                    return 2
-                fi
-                SCHEDULE_TIME="$2"
                 shift 2
                 ;;
             -h|--help)
@@ -735,116 +685,6 @@ is_git_repository() {
 }
 
 #######################################
-# Generate launchd plist file for scheduled execution
-# Creates a plist file in ~/Library/LaunchAgents for scheduling the script
-# Globals:
-#   SCHEDULE_TIME - Time for scheduled execution (HH:MM format)
-# Arguments:
-#   None
-# Returns:
-#   0 on success, 1 on failure
-#######################################
-generate_launchd_plist() {
-    echo "Generating launchd plist file..."
-    
-    # Parse schedule time
-    local hour minute
-    if [[ "${SCHEDULE_TIME}" =~ ^([0-9]{2}):([0-9]{2})$ ]]; then
-        hour="${BASH_REMATCH[1]}"
-        minute="${BASH_REMATCH[2]}"
-        # Remove leading zeros for plist (XML doesn't like them)
-        hour=$((10#${hour}))
-        minute=$((10#${minute}))
-    else
-        echo "ERROR: Invalid schedule time format: ${SCHEDULE_TIME}" >&2
-        return 1
-    fi
-    
-    # Get the actual script path
-    local script_path
-    script_path="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
-    
-    # Expand to absolute path if it's a symlink
-    if [[ -L "${script_path}" ]]; then
-        script_path="$(readlink -f "${script_path}" 2>/dev/null || readlink "${script_path}")"
-    fi
-    
-    # Plist destination
-    local plist_dir="${HOME}/Library/LaunchAgents"
-    local plist_file="${plist_dir}/com.homebrewconfig.automation.plist"
-    
-    # Create LaunchAgents directory if it doesn't exist
-    if [[ ! -d "${plist_dir}" ]]; then
-        echo "Creating LaunchAgents directory: ${plist_dir}"
-        if ! mkdir -p "${plist_dir}" 2>/dev/null; then
-            echo "ERROR: Failed to create LaunchAgents directory" >&2
-            return 1
-        fi
-    fi
-    
-    # Log directory for launchd output
-    local log_dir="${HOME}/.local/share/homebrew-config/logs"
-    
-    # Create log directory if it doesn't exist
-    if [[ ! -d "${log_dir}" ]]; then
-        mkdir -p "${log_dir}" 2>/dev/null || {
-            echo "WARN: Failed to create log directory, using /tmp" >&2
-            log_dir="/tmp"
-        }
-    fi
-    
-    # Generate plist content
-    cat > "${plist_file}" << EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>Homebrew Config Automation</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>${script_path}</string>
-    </array>
-    <key>StartCalendarInterval</key>
-    <dict>
-        <key>Hour</key>
-        <integer>${hour}</integer>
-        <key>Minute</key>
-        <integer>${minute}</integer>
-    </dict>
-    <key>StandardOutPath</key>
-    <string>${log_dir}/launchd-stdout.log</string>
-    <key>StandardErrorPath</key>
-    <string>${log_dir}/launchd-stderr.log</string>
-</dict>
-</plist>
-EOF
-    
-    if [[ $? -eq 0 ]]; then
-        echo "✓ Plist file generated successfully: ${plist_file}"
-        echo ""
-        echo "Configuration:"
-        echo "  Script path: ${script_path}"
-        echo "  Schedule time: ${SCHEDULE_TIME} (${hour}:$(printf "%02d" ${minute}))"
-        echo "  Stdout log: ${log_dir}/launchd-stdout.log"
-        echo "  Stderr log: ${log_dir}/launchd-stderr.log"
-        echo ""
-        echo "To activate the scheduled execution, run:"
-        echo "  launchctl load ${plist_file}"
-        echo ""
-        echo "To deactivate, run:"
-        echo "  launchctl unload ${plist_file}"
-        echo ""
-        echo "To check status, run:"
-        echo "  launchctl list | grep homebrew-config"
-        return 0
-    else
-        echo "ERROR: Failed to generate plist file" >&2
-        return 1
-    fi
-}
-
-#######################################
 # Commit Brewfile changes to Git
 # Creates a Git commit if Brewfile has changes
 # Globals:
@@ -934,15 +774,6 @@ main() {
     # Parse command-line arguments first (before logging setup)
     if ! parse_arguments "$@"; then
         exit 2
-    fi
-    
-    # Check if we should generate plist and exit
-    if [[ "${GENERATE_PLIST}" == "true" ]]; then
-        if generate_launchd_plist; then
-            exit 0
-        else
-            exit 1
-        fi
     fi
     
     # Load configuration (sets LOG_DIR and other variables)
