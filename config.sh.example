@@ -38,6 +38,3 @@ GIT_COMMIT_ENABLED=true
 #   - "3600" runs every hour
 # Default: daily
 SCHEDULE_PATTERN="daily"
-
-# Script version (do not modify)
-SCRIPT_VERSION="1.0.0"
