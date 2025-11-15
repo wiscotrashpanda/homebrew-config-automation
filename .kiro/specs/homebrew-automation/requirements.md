@@ -101,30 +101,43 @@ This document specifies the requirements for a Homebrew automation script that m
 
 ### Requirement 8
 
-**User Story:** As a user, I want the script to run automatically on a configurable schedule, so that my Homebrew installation stays updated without manual intervention.
+**User Story:** As a user, I want the script to execute as a single-run command that completes and exits, so that I can invoke it on-demand or schedule it using native macOS scheduling tools.
 
 #### Acceptance Criteria
 
-1. THE Script SHALL provide a mechanism to configure scheduled execution using launchd on macOS
-2. THE Script SHALL accept a schedule configuration parameter specifying the execution frequency
-3. WHEN schedule configuration is provided, THE Script SHALL generate a launchd plist file with the specified schedule
-4. THE Script SHALL support common schedule patterns including daily, weekly, and custom interval specifications
-5. WHEN the launchd configuration is created, THE Script SHALL load it into the user's launchd instance
-6. THE Script SHALL log all scheduled executions with timestamps to distinguish automated runs from manual runs
+1. WHEN the Script is invoked, THE Script SHALL execute all operations in a single run and then exit
+2. THE Script SHALL NOT include any continuous loop or sleep mechanisms
+3. THE Script SHALL NOT manage its own scheduling or timing
+4. THE Script SHALL complete all operations and exit with an appropriate status code
+5. THE Script SHALL be suitable for invocation by external schedulers including launchd and cron
 
 ### Requirement 9
 
-**User Story:** As a user, I want to run the script manually on-demand, so that I can trigger updates immediately when needed without waiting for the scheduled execution.
+**User Story:** As a user, I want to run the script on-demand from the command line, so that I can trigger updates immediately when needed.
 
 #### Acceptance Criteria
 
 1. THE Script SHALL execute all operations when invoked directly from the command line
 2. THE Script SHALL accept command-line arguments to override default configuration values
-3. WHEN the Script is executed manually, THE Script SHALL log the execution as a manual run
-4. THE Script SHALL complete all operations in a single execution whether run manually or on schedule
-5. THE Script SHALL provide a help option that displays available command-line arguments and usage information
+3. WHEN the Script completes, THE Script SHALL exit immediately without waiting or looping
+4. THE Script SHALL provide a help option that displays available command-line arguments and usage information
+5. THE Script SHALL log each execution with a timestamp
 
 ### Requirement 10
+
+**User Story:** As a user, I want the script to generate a launchd plist file for me, so that I can easily set up scheduled execution without manually creating the configuration.
+
+#### Acceptance Criteria
+
+1. THE Script SHALL provide a command-line option to generate a launchd plist file
+2. WHEN the plist generation option is invoked, THE Script SHALL create a plist file with the correct script path and schedule
+3. THE Script SHALL save the generated plist to the user's LaunchAgents directory
+4. THE Script SHALL support specifying the schedule time via command-line arguments
+5. WHEN the plist is generated, THE Script SHALL provide instructions for loading it with launchctl
+6. THE Script SHALL NOT automatically load the plist into launchd
+7. THE Script SHALL exit after generating the plist without executing other operations
+
+### Requirement 11
 
 **User Story:** As a user, I want comprehensive documentation for setting up the automation, so that I can configure and use the script correctly without confusion.
 
@@ -139,7 +152,7 @@ This document specifies the requirements for a Homebrew automation script that m
 7. THE README SHALL include examples of common configuration scenarios with complete command examples
 8. THE README SHALL document how to modify configuration after initial installation
 
-### Requirement 11
+### Requirement 12
 
 **User Story:** As a user, I want to install and configure the script myself on my local machine, so that I have control over the setup process and understand how it works.
 
@@ -154,7 +167,7 @@ This document specifies the requirements for a Homebrew automation script that m
 7. THE Script SHALL use only bash or zsh shell features available by default on macOS
 8. IF optional dependencies are missing, THEN THE Script SHALL provide clear instructions for installing them
 
-### Requirement 12
+### Requirement 13
 
 **User Story:** As a developer, I want all development artifacts cleaned up from my local machine after development, so that only production-ready files remain for installation.
 

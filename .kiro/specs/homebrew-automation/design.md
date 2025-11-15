@@ -52,7 +52,7 @@ The primary executable that orchestrates all operations.
 
 **Functions:**
 
-- `main()` - Entry point and orchestration
+- `main()` - Entry point and orchestration (executes once and exits)
 - `parse_arguments()` - Process command-line arguments
 - `load_configuration()` - Read configuration from file or environment
 - `check_homebrew()` - Verify Homebrew installation status
@@ -61,10 +61,21 @@ The primary executable that orchestrates all operations.
 - `generate_brewfile()` - Create Brewfile from current configuration
 - `save_brewfile()` - Write Brewfile to destination directory
 - `commit_to_git()` - Create Git commit if applicable
+- `generate_launchd_plist()` - Create launchd plist file for scheduling
 - `setup_logging()` - Initialize log file and rotation
 - `rotate_logs()` - Manage log file rotation
 - `log_message()` - Write timestamped log entries
 - `show_help()` - Display usage information
+
+**Execution Model:**
+
+The script follows a simple run-once model:
+
+1. Parse arguments and load configuration
+2. If --generate-plist flag is present, generate plist and exit
+3. Otherwise, execute all operations in sequence
+4. Exit with appropriate status code
+5. No loops, timers, or background processes
 
 **Command-line Interface:**
 
@@ -72,11 +83,12 @@ The primary executable that orchestrates all operations.
 brew-config.sh [OPTIONS]
 
 Options:
-  -d, --destination DIR    Brewfile destination directory (default: ~/Config)
-  -s, --schedule PATTERN   Setup scheduled execution (daily|weekly|INTERVAL)
-  -c, --config FILE        Configuration file path
-  -h, --help              Show help message
-  -v, --version           Show version information
+  -d, --destination DIR       Brewfile destination directory (default: ~/Config)
+  -c, --config FILE           Configuration file path
+  --generate-plist            Generate launchd plist file and exit
+  --schedule-time HH:MM       Time for scheduled execution (default: 02:00)
+  -h, --help                  Show help message
+  -v, --version               Show version information
 ```
 
 **Exit Codes:**
@@ -88,13 +100,12 @@ Options:
 
 ### 2. Installation Script (install.sh)
 
-Handles initial setup and installation of the automation system.
+Handles initial setup and installation of the script.
 
 **Functions:**
 
 - `install_script()` - Copy script to installation location
 - `create_config()` - Generate configuration file from template
-- `setup_schedule()` - Configure launchd for scheduled execution
 - `verify_installation()` - Validate installation success
 
 **Installation Locations:**
@@ -102,7 +113,8 @@ Handles initial setup and installation of the automation system.
 - Script: `~/bin/brew-config.sh` (or user-specified)
 - Config: `~/.config/homebrew-config/config.sh`
 - Logs: `~/.local/share/homebrew-config/logs/`
-- Launchd plist: `~/Library/LaunchAgents/com.user.homebrew-config.plist`
+
+**Note:** Scheduling setup (launchd plist or cron) is left to the user and documented in the README.
 
 ### 3. Configuration System
 
@@ -131,9 +143,6 @@ MAX_LOG_FILES=5
 
 # Git commit enabled
 GIT_COMMIT_ENABLED=true
-
-# Schedule pattern (for launchd setup)
-SCHEDULE_PATTERN="daily"  # daily, weekly, or interval in seconds
 ```
 
 ### 4. Logging System
@@ -218,9 +227,19 @@ Update Brewfile - YYYY-MM-DDTHH:MM:SSZ
 Automated update from homebrew-config script
 ```
 
-### 7. Scheduled Execution (launchd)
+### 7. Scheduling Integration
 
-**Plist Template:**
+The script is designed as a single-run command that completes and exits, making it compatible with any macOS scheduling mechanism.
+
+**Plist Generation:**
+
+The script includes a `--generate-plist` option that creates a launchd plist file:
+
+```bash
+brew-config.sh --generate-plist --schedule-time 02:00
+```
+
+This generates `~/Library/LaunchAgents/com.user.homebrew-config.plist`:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -231,25 +250,43 @@ Automated update from homebrew-config script
     <string>com.user.homebrew-config</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/path/to/brew-config.sh</string>
+        <string>/Users/username/bin/brew-config.sh</string>
     </array>
     <key>StartCalendarInterval</key>
     <dict>
-        <!-- Schedule configuration here -->
+        <key>Hour</key>
+        <integer>2</integer>
+        <key>Minute</key>
+        <integer>0</integer>
     </dict>
     <key>StandardOutPath</key>
-    <string>/path/to/logs/launchd-stdout.log</string>
+    <string>/Users/username/.local/share/homebrew-config/logs/launchd-stdout.log</string>
     <key>StandardErrorPath</key>
-    <string>/path/to/logs/launchd-stderr.log</string>
+    <string>/Users/username/.local/share/homebrew-config/logs/launchd-stderr.log</string>
 </dict>
 </plist>
 ```
 
-**Schedule Patterns:**
+After generation, the script provides instructions for loading:
 
-- Daily: Run at 2:00 AM every day
-- Weekly: Run at 2:00 AM every Sunday
-- Custom interval: Run every N seconds
+```bash
+launchctl load ~/Library/LaunchAgents/com.user.homebrew-config.plist
+```
+
+**Alternative: Manual cron Entry:**
+
+Users can also use cron:
+
+```
+0 2 * * * /Users/username/bin/brew-config.sh >> /Users/username/.local/share/homebrew-config/logs/cron.log 2>&1
+```
+
+**Script Behavior:**
+
+- Script executes all operations in sequence
+- Script exits immediately upon completion
+- No loops, sleeps, or timing mechanisms in the script
+- Suitable for any external scheduler
 
 ## Data Models
 
@@ -262,7 +299,6 @@ LOG_DIR=""
 MAX_LOG_SIZE=""
 MAX_LOG_FILES=""
 GIT_COMMIT_ENABLED=""
-SCHEDULE_PATTERN=""
 SCRIPT_VERSION="1.0.0"
 ```
 
@@ -278,7 +314,6 @@ Message: Free-form text
 
 ```bash
 # Runtime state
-EXECUTION_MODE=""        # manual|scheduled
 START_TIME=""           # Execution start timestamp
 HOMEBREW_INSTALLED=""   # true|false
 UPGRADE_SUCCESS=""      # true|false
@@ -519,7 +554,7 @@ Each test script will:
 3. **Installation** - Step-by-step setup
 4. **Configuration** - All configuration options
 5. **Usage** - Command-line examples
-6. **Scheduling** - Setting up automated runs
+6. **Scheduling** - Examples for setting up launchd or cron (user-managed)
 7. **Logs** - Understanding log output
 8. **Troubleshooting** - Common issues and solutions
 9. **Uninstallation** - How to remove

@@ -159,6 +159,8 @@ brew-config.sh --version
 - `-d, --destination DIR` - Brewfile destination directory
 - `-s, --schedule PATTERN` - Setup scheduled execution
 - `-c, --config FILE` - Configuration file path
+- `--generate-plist` - Generate launchd plist file for scheduled execution
+- `--schedule-time HH:MM` - Time for scheduled execution (24-hour format, default: 02:00)
 - `-h, --help` - Show help message
 - `-v, --version` - Show version information
 
@@ -186,6 +188,16 @@ brew-config.sh
 brew-config.sh --destination ~/dotfiles
 ```
 
+**Set up scheduled execution at a specific time:**
+
+```bash
+# Generate plist for daily execution at 3:30 AM
+brew-config.sh --generate-plist --schedule-time 03:30
+
+# Load the plist
+launchctl load ~/Library/LaunchAgents/com.user.homebrew-config.plist
+```
+
 **Weekly updates with custom interval:**
 
 ```bash
@@ -197,15 +209,43 @@ brew-config.sh --destination ~/dotfiles
 
 ### Setting Up Scheduled Execution
 
-Scheduled execution uses macOS launchd to run the script automatically.
+Scheduled execution uses macOS launchd to run the script automatically. You can set up scheduling in two ways:
 
-**During Installation:**
+#### Option 1: Using --generate-plist (Recommended)
+
+The easiest way to set up scheduled execution is to use the built-in plist generator:
+
+```bash
+# Generate plist for daily execution at 2:00 AM (default)
+brew-config.sh --generate-plist
+
+# Generate plist for daily execution at a custom time
+brew-config.sh --generate-plist --schedule-time 03:30
+
+# Generate plist for daily execution at 6:00 AM
+brew-config.sh --generate-plist --schedule-time 06:00
+```
+
+After generating the plist, load it with launchctl:
+
+```bash
+launchctl load ~/Library/LaunchAgents/com.user.homebrew-config.plist
+```
+
+The `--generate-plist` option will:
+
+- Create a properly formatted plist file
+- Use the script's actual installation path
+- Set up logging for launchd output
+- Display instructions for loading the plist
+
+#### Option 2: During Installation
 
 ```bash
 ./install.sh --schedule daily
 ```
 
-**After Installation:**
+#### Option 3: Manual Setup
 
 ```bash
 # Create and load the plist manually
@@ -300,6 +340,53 @@ cat ~/.local/share/homebrew-config/logs/launchd-stdout.log
 ```
 
 ## Troubleshooting
+
+### Plist Generation Issues
+
+**Issue: --generate-plist fails with "Invalid schedule time format"**
+
+Solution: Ensure time is in HH:MM format (24-hour)
+
+```bash
+# Correct format
+brew-config.sh --generate-plist --schedule-time 03:30
+
+# Incorrect formats
+brew-config.sh --generate-plist --schedule-time 3:30    # Missing leading zero
+brew-config.sh --generate-plist --schedule-time 15:30PM # Don't use AM/PM
+```
+
+**Issue: Generated plist doesn't use the correct script path**
+
+Solution: The script automatically detects its installation path. If you move the script after generating the plist, regenerate it:
+
+```bash
+brew-config.sh --generate-plist
+launchctl unload ~/Library/LaunchAgents/com.user.homebrew-config.plist
+launchctl load ~/Library/LaunchAgents/com.user.homebrew-config.plist
+```
+
+**Issue: Plist generation succeeds but launchctl load fails**
+
+Solutions:
+
+1. Check if a plist with the same name is already loaded:
+
+   ```bash
+   launchctl list | grep homebrew-config
+   ```
+
+2. Unload the existing plist first:
+
+   ```bash
+   launchctl unload ~/Library/LaunchAgents/com.user.homebrew-config.plist
+   launchctl load ~/Library/LaunchAgents/com.user.homebrew-config.plist
+   ```
+
+3. Verify plist syntax:
+   ```bash
+   plutil -lint ~/Library/LaunchAgents/com.user.homebrew-config.plist
+   ```
 
 ### Common Issues
 
