@@ -462,3 +462,72 @@ parse_arguments() {
     
     return 0
 }
+
+#######################################
+# Check if Homebrew is installed
+# Verifies if brew command is available in PATH
+# Arguments:
+#   None
+# Returns:
+#   0 if Homebrew is installed, 1 if not installed
+#######################################
+check_homebrew() {
+    log_message "INFO" "Checking for Homebrew installation..."
+    
+    if command -v brew &> /dev/null; then
+        local brew_version
+        brew_version=$(brew --version | head -n 1)
+        log_message "INFO" "Homebrew is installed: ${brew_version}"
+        return 0
+    else
+        log_message "INFO" "Homebrew is not installed"
+        return 1
+    fi
+}
+
+#######################################
+# Install Homebrew
+# Downloads and installs Homebrew using the official installation script
+# Arguments:
+#   None
+# Returns:
+#   0 on success, 1 on failure
+#######################################
+install_homebrew() {
+    log_message "INFO" "Starting Homebrew installation..."
+    
+    # Official Homebrew installation script URL
+    local install_url="https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh"
+    
+    # Download and execute installation script
+    if /bin/bash -c "$(curl -fsSL ${install_url})"; then
+        log_message "INFO" "Homebrew installation completed successfully"
+        
+        # On Apple Silicon Macs, Homebrew is installed to /opt/homebrew
+        # Add it to PATH if not already present
+        if [[ -d "/opt/homebrew/bin" ]] && [[ ":${PATH}:" != *":/opt/homebrew/bin:"* ]]; then
+            export PATH="/opt/homebrew/bin:${PATH}"
+            log_message "INFO" "Added /opt/homebrew/bin to PATH"
+        fi
+        
+        # On Intel Macs, Homebrew is installed to /usr/local
+        if [[ -d "/usr/local/bin" ]] && [[ ":${PATH}:" != *":/usr/local/bin:"* ]]; then
+            export PATH="/usr/local/bin:${PATH}"
+            log_message "INFO" "Added /usr/local/bin to PATH"
+        fi
+        
+        # Verify installation
+        if command -v brew &> /dev/null; then
+            local brew_version
+            brew_version=$(brew --version | head -n 1)
+            log_message "INFO" "Verified Homebrew installation: ${brew_version}"
+            return 0
+        else
+            log_message "FATAL" "Homebrew installation completed but brew command not found in PATH"
+            return 1
+        fi
+    else
+        log_message "FATAL" "Homebrew installation failed"
+        return 1
+    fi
+}
