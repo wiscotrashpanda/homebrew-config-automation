@@ -271,6 +271,167 @@ verify_installation() {
 }
 
 #######################################
+# Generate launchd plist file for scheduled execution
+# Creates a plist file based on the schedule pattern
+# Globals:
+#   SCHEDULE_PATTERN - Schedule pattern (daily|weekly|interval)
+#   INSTALL_DIR - Installation directory
+# Arguments:
+#   None
+# Outputs:
+#   Plist XML to stdout
+# Returns:
+#   0 on success
+#######################################
+generate_plist() {
+    local script_path="${INSTALL_DIR}/brew-config.sh"
+    local log_dir="${HOME}/.local/share/homebrew-config/logs"
+    
+    # Ensure log directory exists
+    mkdir -p "${log_dir}" 2>/dev/null || true
+    
+    # Start plist
+    cat << EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.user.homebrew-config</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>${script_path}</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>LAUNCHED_BY_LAUNCHD</key>
+        <string>1</string>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>${log_dir}/launchd-stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>${log_dir}/launchd-stderr.log</string>
+EOF
+
+    # Add schedule based on pattern
+    case "${SCHEDULE_PATTERN}" in
+        daily)
+            cat << EOF
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>2</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+EOF
+            ;;
+        weekly)
+            cat << EOF
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Weekday</key>
+        <integer>0</integer>
+        <key>Hour</key>
+        <integer>2</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+EOF
+            ;;
+        [0-9]*)
+            # Interval in seconds
+            cat << EOF
+    <key>StartInterval</key>
+    <integer>${SCHEDULE_PATTERN}</integer>
+EOF
+            ;;
+        *)
+            echo "ERROR: Invalid schedule pattern: ${SCHEDULE_PATTERN}" >&2
+            return 1
+            ;;
+    esac
+    
+    # Close plist
+    cat << EOF
+</dict>
+</plist>
+EOF
+    
+    return 0
+}
+
+#######################################
+# Setup scheduled execution using launchd
+# Creates and loads launchd plist file
+# Globals:
+#   SCHEDULE_PATTERN - Schedule pattern
+# Arguments:
+#   None
+# Returns:
+#   0 on success, 1 on failure
+#######################################
+setup_schedule() {
+    echo "Setting up scheduled execution..."
+    
+    local plist_dir="${HOME}/Library/LaunchAgents"
+    local plist_file="${plist_dir}/com.user.homebrew-config.plist"
+    
+    # Create LaunchAgents directory if it doesn't exist
+    if [[ ! -d "${plist_dir}" ]]; then
+        echo "Creating LaunchAgents directory: ${plist_dir}"
+        if ! mkdir -p "${plist_dir}"; then
+            echo "ERROR: Failed to create LaunchAgents directory" >&2
+            return 1
+        fi
+    fi
+    
+    # Generate and save plist file
+    if ! generate_plist > "${plist_file}"; then
+        echo "ERROR: Failed to generate plist file" >&2
+        return 1
+    fi
+    
+    echo "✓ Plist file created: ${plist_file}"
+    
+    # Validate plist syntax
+    if ! plutil -lint "${plist_file}" &> /dev/null; then
+        echo "ERROR: Invalid plist syntax" >&2
+        return 1
+    fi
+    
+    echo "✓ Plist syntax validated"
+    
+    # Unload existing job if present
+    launchctl unload "${plist_file}" 2>/dev/null || true
+    
+    # Load the plist
+    if launchctl load "${plist_file}"; then
+        echo "✓ Scheduled execution configured successfully"
+        
+        # Display schedule info
+        case "${SCHEDULE_PATTERN}" in
+            daily)
+                echo "  Schedule: Daily at 2:00 AM"
+                ;;
+            weekly)
+                echo "  Schedule: Weekly on Sunday at 2:00 AM"
+                ;;
+            [0-9]*)
+                echo "  Schedule: Every ${SCHEDULE_PATTERN} seconds"
+                ;;
+        esac
+        
+        return 0
+    else
+        echo "ERROR: Failed to load launchd job" >&2
+        return 1
+    fi
+}
+
+#######################################
 # Main installation function
 # Orchestrates the installation process
 # Arguments:
@@ -314,11 +475,13 @@ main() {
         exit 1
     fi
     
-    # Setup schedule if requested (will be implemented in task 10)
+    # Setup schedule if requested
     if [[ -n "${SCHEDULE_PATTERN}" ]]; then
         echo
-        echo "Note: Scheduled execution setup will be available in the next version"
-        echo "For now, you can run the script manually: ${INSTALL_DIR}/brew-config.sh"
+        if ! setup_schedule; then
+            echo "WARNING: Scheduled execution setup failed" >&2
+            echo "You can still run the script manually: ${INSTALL_DIR}/brew-config.sh"
+        fi
     fi
     
     # Display installation summary
