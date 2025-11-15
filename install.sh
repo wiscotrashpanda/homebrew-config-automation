@@ -286,7 +286,7 @@ verify_installation() {
     local script_path="${INSTALL_DIR}/brew-config.sh"
     local app_bundle="${HOME}/Applications/Homebrew Config Automation.app"
     local wrapper_exec="${app_bundle}/Contents/MacOS/Homebrew Config Automation"
-    local plist_file="${HOME}/Library/LaunchAgents/com.homebrewconfig.automation.plist"
+    local plist_file="${HOME}/Library/LaunchAgents/com.emkaytec.homebrewconfig.plist"
     
     # Check script exists
     if [[ ! -f "${script_path}" ]]; then
@@ -369,7 +369,7 @@ generate_plist() {
     local app_bundle_exec="${HOME}/Applications/Homebrew Config Automation.app/Contents/MacOS/Homebrew Config Automation"
     local log_dir="${HOME}/.local/share/homebrew-config/logs"
     local plist_dir="${HOME}/Library/LaunchAgents"
-    local plist_file="${plist_dir}/com.homebrewconfig.automation.plist"
+    local plist_file="${plist_dir}/com.emkaytec.homebrewconfig.plist"
     
     # Ensure log directory exists
     mkdir -p "${log_dir}" 2>/dev/null || true
@@ -390,7 +390,7 @@ generate_plist() {
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.homebrewconfig.automation</string>
+    <string>com.emkaytec.homebrewconfig</string>
     <key>ProgramArguments</key>
     <array>
         <string>${app_bundle_exec}</string>
@@ -512,14 +512,14 @@ main() {
     echo "Installed files:"
     echo "  Script:        ${INSTALL_DIR}/brew-config.sh"
     echo "  App Bundle:    ${HOME}/Applications/Homebrew Config Automation.app"
-    echo "  Plist:         ${HOME}/Library/LaunchAgents/com.homebrewconfig.automation.plist"
+    echo "  Plist:         ${HOME}/Library/LaunchAgents/com.emkaytec.homebrewconfig.plist"
     echo "  Configuration: ${CONFIG_DIR}/config.sh"
     echo "  Example:       ${CONFIG_DIR}/config.sh.example"
     echo
     echo "Next steps:"
     echo "  1. Edit configuration if needed: ${CONFIG_DIR}/config.sh"
     echo "  2. Test manual execution: ${INSTALL_DIR}/brew-config.sh"
-    echo "  3. Load scheduled execution: launchctl load ${HOME}/Library/LaunchAgents/com.homebrewconfig.automation.plist"
+    echo "  3. Load scheduled execution: launchctl load ${HOME}/Library/LaunchAgents/com.emkaytec.homebrewconfig.plist"
     echo
     echo "For help: ${INSTALL_DIR}/brew-config.sh --help"
     echo

@@ -62,7 +62,7 @@ The installation script will:
 
 - **Script**: `~/bin/brew-config.sh`
 - **App Bundle**: `~/Applications/Homebrew Config Automation.app`
-- **Plist**: `~/Library/LaunchAgents/com.homebrewconfig.automation.plist`
+- **Plist**: `~/Library/LaunchAgents/com.emkaytec.homebrewconfig.plist`
 - **Configuration**: `~/.config/homebrew-config/config.sh`
 - **Example Config**: `~/.config/homebrew-config/config.sh.example`
 - **Logs**: `~/.local/share/homebrew-config/logs/`
@@ -123,11 +123,11 @@ Configuration is loaded in this order (highest to lowest priority):
 
    ```bash
    # Edit the plist
-   nano ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
+   nano ~/Library/LaunchAgents/com.emkaytec.homebrewconfig.plist
 
    # Reload launchd
-   launchctl unload ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
-   launchctl load ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
+   launchctl unload ~/Library/LaunchAgents/com.emkaytec.homebrewconfig.plist
+   launchctl load ~/Library/LaunchAgents/com.emkaytec.homebrewconfig.plist
    ```
 
 ## Usage
@@ -186,13 +186,13 @@ The installation script automatically generates a launchd plist file configured 
 **To activate scheduled execution:**
 
 ```bash
-launchctl load ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
+launchctl load ~/Library/LaunchAgents/com.emkaytec.homebrewconfig.plist
 ```
 
 **To deactivate:**
 
 ```bash
-launchctl unload ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
+launchctl unload ~/Library/LaunchAgents/com.emkaytec.homebrewconfig.plist
 ```
 
 ### Customizing the Schedule
@@ -200,7 +200,7 @@ launchctl unload ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
 To change the schedule time, edit the plist file:
 
 ```bash
-nano ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
+nano ~/Library/LaunchAgents/com.emkaytec.homebrewconfig.plist
 ```
 
 Change the `Hour` and `Minute` values in the `StartCalendarInterval` section:
@@ -218,8 +218,8 @@ Change the `Hour` and `Minute` values in the `StartCalendarInterval` section:
 Then reload the plist:
 
 ```bash
-launchctl unload ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
-launchctl load ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
+launchctl unload ~/Library/LaunchAgents/com.emkaytec.homebrewconfig.plist
+launchctl load ~/Library/LaunchAgents/com.emkaytec.homebrewconfig.plist
 ```
 
 ### Managing Scheduled Execution
@@ -233,14 +233,14 @@ launchctl list | grep homebrewconfig
 **View schedule:**
 
 ```bash
-cat ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
+cat ~/Library/LaunchAgents/com.emkaytec.homebrewconfig.plist
 ```
 
 **Remove schedule:**
 
 ```bash
-launchctl unload ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
-rm ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
+launchctl unload ~/Library/LaunchAgents/com.emkaytec.homebrewconfig.plist
+rm ~/Library/LaunchAgents/com.emkaytec.homebrewconfig.plist
 ```
 
 ### Application Bundle
@@ -359,8 +359,8 @@ Solutions:
 
 3. Reload the job:
    ```bash
-   launchctl unload ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
-   launchctl load ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
+   launchctl unload ~/Library/LaunchAgents/com.emkaytec.homebrewconfig.plist
+   launchctl load ~/Library/LaunchAgents/com.emkaytec.homebrewconfig.plist
    ```
 
 **Issue: Application bundle not appearing in System Settings**
@@ -375,8 +375,8 @@ Solution: The bundle should appear automatically. If not, try:
 
 2. Reload the plist:
    ```bash
-   launchctl unload ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
-   launchctl load ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
+   launchctl unload ~/Library/LaunchAgents/com.emkaytec.homebrewconfig.plist
+   launchctl load ~/Library/LaunchAgents/com.emkaytec.homebrewconfig.plist
    ```
 
 **Issue: Log files growing too large**
@@ -422,12 +422,12 @@ To completely remove the script:
 
 ```bash
 # 1. Unload launchd job
-launchctl unload ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
+launchctl unload ~/Library/LaunchAgents/com.emkaytec.homebrewconfig.plist
 
 # 2. Remove installed files
 rm ~/bin/brew-config.sh
 rm -rf ~/Applications/Homebrew\ Config\ Automation.app
-rm ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
+rm ~/Library/LaunchAgents/com.emkaytec.homebrewconfig.plist
 rm -rf ~/.config/homebrew-config
 rm -rf ~/.local/share/homebrew-config
 

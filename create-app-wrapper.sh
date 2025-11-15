@@ -53,7 +53,7 @@ cat > "${CONTENTS_DIR}/Info.plist" << EOF
     <key>CFBundleExecutable</key>
     <string>${APP_NAME}</string>
     <key>CFBundleIdentifier</key>
-    <string>com.homebrewconfig.automation</string>
+    <string>com.emkaytec.homebrewconfig</string>
     <key>CFBundleName</key>
     <string>${APP_NAME}</string>
     <key>CFBundleDisplayName</key>

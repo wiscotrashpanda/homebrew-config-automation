@@ -128,7 +128,7 @@
     - Write generate_plist() function to create plist file
     - Configure plist to reference deployed app bundle executable path
     - Set default schedule time to 02:00
-    - Save plist to ~/Library/LaunchAgents/com.homebrewconfig.automation.plist
+    - Save plist to ~/Library/LaunchAgents/com.emkaytec.homebrewconfig.plist
     - _Requirements: 10.3, 10.4, 10.5, 14.6_
 
   - [x] 9.4 Add installation validation
@@ -152,7 +152,7 @@
   - [x] 10.2 Create Info.plist
 
     - Write Info.plist with proper bundle metadata
-    - Set CFBundleIdentifier to com.homebrewconfig.automation
+    - Set CFBundleIdentifier to com.emkaytec.homebrewconfig
     - Set CFBundleDisplayName to "Homebrew Config Automation"
     - Configure LSUIElement and LSBackgroundOnly for background execution
     - Reference AppIcon in CFBundleIconFile

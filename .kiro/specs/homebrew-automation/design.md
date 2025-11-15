@@ -118,7 +118,7 @@ Handles initial setup, installation, and deployment of all components.
 
 - Script: `~/bin/brew-config.sh` (or user-specified)
 - App Bundle: `~/Applications/Homebrew Config Automation.app/`
-- Plist: `~/Library/LaunchAgents/com.homebrewconfig.automation.plist`
+- Plist: `~/Library/LaunchAgents/com.emkaytec.homebrewconfig.plist`
 - Config: `~/.config/homebrew-config/config.sh`
 - Logs: `~/.local/share/homebrew-config/logs/`
 
@@ -279,7 +279,7 @@ exec "$HOME/bin/brew-config.sh" "$@"
     <key>CFBundleExecutable</key>
     <string>Homebrew Config Automation</string>
     <key>CFBundleIdentifier</key>
-    <string>com.homebrewconfig.automation</string>
+    <string>com.emkaytec.homebrewconfig</string>
     <key>CFBundleName</key>
     <string>Homebrew Config Automation</string>
     <key>CFBundleDisplayName</key>
@@ -308,7 +308,7 @@ The installation script generates a launchd plist that references the deployed a
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.homebrewconfig.automation</string>
+    <string>com.emkaytec.homebrewconfig</string>
     <key>ProgramArguments</key>
     <array>
         <string>/Users/username/Applications/Homebrew Config Automation.app/Contents/MacOS/Homebrew Config Automation</string>
@@ -332,7 +332,7 @@ The installation script generates a launchd plist that references the deployed a
 
 1. Installation script copies pre-built app bundle to ~/Applications/
 2. Installation script generates plist referencing the app bundle
-3. User loads plist with: `launchctl load ~/Library/LaunchAgents/com.homebrewconfig.automation.plist`
+3. User loads plist with: `launchctl load ~/Library/LaunchAgents/com.emkaytec.homebrewconfig.plist`
 4. Scheduled execution runs via app bundle wrapper
 
 **Benefits:**
@@ -585,12 +585,12 @@ Each test script will:
 
 ### Uninstallation
 
-1. Unload launchd job: `launchctl unload ~/Library/LaunchAgents/com.homebrewconfig.automation.plist`
+1. Unload launchd job: `launchctl unload ~/Library/LaunchAgents/com.emkaytec.homebrewconfig.plist`
 2. Remove installed files:
    - Script: `~/bin/brew-config.sh`
    - Config: `~/.config/homebrew-config/`
    - Logs: `~/.local/share/homebrew-config/`
-   - Plist: `~/Library/LaunchAgents/com.homebrewconfig.automation.plist`
+   - Plist: `~/Library/LaunchAgents/com.emkaytec.homebrewconfig.plist`
 
 ### Updates
 
