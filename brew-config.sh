@@ -587,8 +587,45 @@ upgrade_homebrew() {
         upgrade_status=0
         log_message "INFO" "Homebrew upgrade completed successfully"
     else
-        upgrade_status=1
-        log_message "ERROR" "Homebrew upgrade failed with exit code: ${upgrade_status}"
+        upgrade_status=$?
+        log_message "WARN" "Homebrew upgrade encountered issues (exit code: ${upgrade_status})"
+        
+        # Check for cask conflicts (apps updated outside Homebrew)
+        if echo "${upgrade_output}" | grep -q "It seems there is already an App at"; then
+            log_message "INFO" "Detected cask conflicts - attempting to resolve..."
+            
+            # Extract cask names that have conflicts
+            local conflicted_casks
+            conflicted_casks=$(echo "${upgrade_output}" | grep -oE "Error: [^:]+:" | sed 's/Error: //;s/://' | sort -u)
+            
+            if [[ -n "${conflicted_casks}" ]]; then
+                log_message "INFO" "Found conflicted casks: ${conflicted_casks}"
+                
+                # Try to reinstall each conflicted cask
+                while IFS= read -r cask; do
+                    if [[ -n "${cask}" ]]; then
+                        log_message "INFO" "Reinstalling cask: ${cask}"
+                        if brew reinstall --cask "${cask}" 2>&1 | tee -a "${LOG_FILE}"; then
+                            log_message "INFO" "Successfully reinstalled ${cask}"
+                        else
+                            log_message "WARN" "Failed to reinstall ${cask}, you may need to manually resolve this"
+                        fi
+                    fi
+                done <<< "${conflicted_casks}"
+                
+                # Retry upgrade after resolving conflicts
+                log_message "INFO" "Retrying upgrade after resolving conflicts..."
+                if upgrade_output=$(brew upgrade 2>&1); then
+                    upgrade_status=0
+                    log_message "INFO" "Homebrew upgrade completed successfully after conflict resolution"
+                else
+                    upgrade_status=$?
+                    log_message "ERROR" "Homebrew upgrade still failed after conflict resolution"
+                fi
+            fi
+        else
+            log_message "ERROR" "Homebrew upgrade failed with exit code: ${upgrade_status}"
+        fi
     fi
     
     # Log completion time
