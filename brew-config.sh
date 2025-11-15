@@ -531,3 +531,61 @@ install_homebrew() {
         return 1
     fi
 }
+
+#######################################
+# Upgrade Homebrew and installed packages
+# Runs brew upgrade to update all packages
+# Arguments:
+#   None
+# Returns:
+#   0 on success, 1 on failure (non-critical)
+#######################################
+upgrade_homebrew() {
+    log_message "INFO" "Starting Homebrew upgrade..."
+    
+    local start_time
+    start_time=$(date -u +"%Y-%m-%dT%H:%M:%S%z")
+    log_message "INFO" "Upgrade started at: ${start_time}"
+    
+    # Run brew upgrade and capture output
+    local upgrade_output
+    local upgrade_status
+    
+    if upgrade_output=$(brew upgrade 2>&1); then
+        upgrade_status=0
+        log_message "INFO" "Homebrew upgrade completed successfully"
+    else
+        upgrade_status=1
+        log_message "ERROR" "Homebrew upgrade failed with exit code: ${upgrade_status}"
+    fi
+    
+    # Log completion time
+    local end_time
+    end_time=$(date -u +"%Y-%m-%dT%H:%M:%S%z")
+    log_message "INFO" "Upgrade completed at: ${end_time}"
+    
+    # Parse and log upgrade summary
+    if [[ ${upgrade_status} -eq 0 ]]; then
+        # Check if any packages were upgraded
+        if echo "${upgrade_output}" | grep -q "Already up-to-date"; then
+            log_message "INFO" "All packages are already up-to-date"
+        elif echo "${upgrade_output}" | grep -q "Upgrading"; then
+            # Count upgraded packages
+            local upgraded_count
+            upgraded_count=$(echo "${upgrade_output}" | grep -c "Upgrading" || echo "0")
+            log_message "INFO" "Upgraded ${upgraded_count} package(s)"
+            
+            # Log package names (first 10 to avoid excessive logging)
+            echo "${upgrade_output}" | grep "Upgrading" | head -n 10 | while IFS= read -r line; do
+                log_message "INFO" "  ${line}"
+            done
+        else
+            log_message "INFO" "Upgrade completed with no changes"
+        fi
+    else
+        # Log error details
+        log_message "ERROR" "Upgrade output: ${upgrade_output}"
+    fi
+    
+    return ${upgrade_status}
+}
