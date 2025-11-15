@@ -1,18 +1,28 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
 # Log files
 *.log
-logs/
 
 # Temporary files
 *.tmp
 *.temp
-.DS_Store
+*.swp
+*.swo
+*~
+
+# Test artifacts
+test-output/
+test-logs/
 
 # Development artifacts
-test-output/
-*.bak
+scratch/
+notes.txt
 
-# Local configuration (users should copy from .example)
+# User configuration (example should be committed)
 config.sh
 
-# Installation test directories
-test-install/
+# Kiro planning specs (keeping for reference)
+# .kiro/

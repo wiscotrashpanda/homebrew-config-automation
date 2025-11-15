@@ -1,40 +1,81 @@
-#!/usr/bin/env bash
+#!/bin/bash
 #
-# Homebrew Configuration Management - Configuration File
-# Copy this file to config.sh and customize as needed
+# Homebrew Config Automation - Configuration File
+#
+# This file contains configuration settings for the brew-config.sh script.
+# Copy this file to ~/.config/homebrew-config/config.sh and customize as needed.
+#
+# Configuration precedence (highest to lowest):
+# 1. Command-line arguments
+# 2. Configuration file specified with -c
+# 3. This default configuration file
+# 4. Environment variables
+# 5. Built-in defaults
 #
 
-# Brewfile destination directory
+#############################################
+# Brewfile Settings
+#############################################
+
+# Destination directory for the Brewfile
 # This is where the generated Brewfile will be saved
 # Default: ~/Config
 BREWFILE_DESTINATION="${HOME}/Config"
 
-# Log directory
-# Location where script logs will be stored
+#############################################
+# Logging Settings
+#############################################
+
+# Directory for log files
 # Default: ~/.local/share/homebrew-config/logs
 LOG_DIR="${HOME}/.local/share/homebrew-config/logs"
 
-# Maximum log file size in bytes
-# When a log file exceeds this size, it will be rotated
+# Maximum log file size in bytes before rotation
 # Default: 10485760 (10MB)
 MAX_LOG_SIZE=10485760
 
-# Number of rotated log files to keep
-# Older log files beyond this count will be deleted
+# Maximum number of rotated log files to keep
+# Older log files will be deleted when this limit is reached
 # Default: 5
 MAX_LOG_FILES=5
 
-# Git commit enabled
-# Set to true to automatically commit Brewfile changes to Git
-# Set to false to skip Git operations
+#############################################
+# Git Settings
+#############################################
+
+# Enable or disable Git commit creation
+# Set to 'true' to automatically commit Brewfile changes to Git
+# Set to 'false' to disable Git integration
 # Default: true
 GIT_COMMIT_ENABLED=true
 
-# Schedule pattern for launchd (used during installation)
-# Options: "daily", "weekly", or a number representing seconds between runs
-# Examples:
-#   - "daily" runs at 2:00 AM every day
-#   - "weekly" runs at 2:00 AM every Sunday
-#   - "3600" runs every hour
-# Default: daily
-SCHEDULE_PATTERN="daily"
+#############################################
+# Advanced Settings
+#############################################
+
+# You can also set these via environment variables:
+# HOMEBREW_CONFIG_DESTINATION     - Override BREWFILE_DESTINATION
+# HOMEBREW_CONFIG_LOG_DIR         - Override LOG_DIR
+# HOMEBREW_CONFIG_MAX_LOG_SIZE    - Override MAX_LOG_SIZE
+# HOMEBREW_CONFIG_MAX_LOG_FILES   - Override MAX_LOG_FILES
+# HOMEBREW_CONFIG_GIT_COMMIT      - Override GIT_COMMIT_ENABLED
+
+#############################################
+# Example Configurations
+#############################################
+
+# Example 1: Store Brewfile in a dotfiles repository
+# BREWFILE_DESTINATION="${HOME}/dotfiles"
+# GIT_COMMIT_ENABLED=true
+
+# Example 2: Store in iCloud for sync across devices
+# BREWFILE_DESTINATION="${HOME}/Library/Mobile Documents/com~apple~CloudDocs/Config"
+# GIT_COMMIT_ENABLED=false
+
+# Example 3: Keep more log history
+# MAX_LOG_SIZE=52428800  # 50MB
+# MAX_LOG_FILES=10
+
+# Example 4: Minimal logging
+# MAX_LOG_SIZE=5242880   # 5MB
+# MAX_LOG_FILES=3

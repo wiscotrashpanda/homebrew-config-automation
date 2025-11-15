@@ -1,443 +1,516 @@
-#!/usr/bin/env bash
+#!/bin/bash
 #
-# Homebrew Configuration Management - Uninstallation Script
-# Removes all installed components from the system
-#
-# Version: 1.0.0
+# Uninstallation Script for Homebrew Configuration Automation
+# Removes the automation application while preserving Brewfiles
 #
 
-set -euo pipefail
+set -e  # Exit on error
+set -u  # Exit on undefined variable
 
-# Script version
-readonly SCRIPT_VERSION="1.0.0"
+# Color codes for output
+readonly RED='\033[0;31m'
+readonly GREEN='\033[0;32m'
+readonly YELLOW='\033[1;33m'
+readonly BLUE='\033[0;34m'
+readonly NC='\033[0m' # No Color
 
-# Installation paths (matching install.sh)
-INSTALL_DIR="${HOME}/bin"
-CONFIG_DIR="${HOME}/.config/homebrew-config"
-LOG_DIR="${HOME}/.local/share/homebrew-config"
-APP_BUNDLE="${HOME}/Applications/Homebrew Config Automation.app"
-PLIST_FILE="${HOME}/Library/LaunchAgents/com.emkaytec.homebrewconfig.plist"
-PLIST_LABEL="com.emkaytec.homebrewconfig"
+# Default installation locations
+DEFAULT_SCRIPT_DIR="${HOME}/bin"
+DEFAULT_APP_DIR="${HOME}/Applications"
+DEFAULT_CONFIG_DIR="${HOME}/.config/homebrew-config"
+DEFAULT_PLIST_DIR="${HOME}/Library/LaunchAgents"
+DEFAULT_LOG_DIR="${HOME}/.local/share/homebrew-config"
 
-# Track what was removed
-declare -a REMOVED_ITEMS=()
-declare -a FAILED_ITEMS=()
+# Uninstallation variables
+SCRIPT_DIR="${DEFAULT_SCRIPT_DIR}"
+APP_DIR="${DEFAULT_APP_DIR}"
+CONFIG_DIR="${DEFAULT_CONFIG_DIR}"
+PLIST_DIR="${DEFAULT_PLIST_DIR}"
+LOG_DIR="${DEFAULT_LOG_DIR}"
 
-#######################################
-# Display uninstallation help message
-# Arguments:
-#   None
-# Outputs:
-#   Help text to stdout
-#######################################
+# Script information
+readonly SCRIPT_NAME="brew-config.sh"
+readonly APP_NAME="Homebrew Config Automation.app"
+readonly PLIST_NAME="com.emkaytec.homebrewconfig.plist"
+
+# Options
+KEEP_CONFIG=false
+KEEP_LOGS=false
+DRY_RUN=false
+FORCE=false
+
+#############################################
+# Output Functions
+#############################################
+
+print_info() {
+    echo -e "${BLUE}[INFO]${NC} $*"
+}
+
+print_success() {
+    echo -e "${GREEN}[SUCCESS]${NC} $*"
+}
+
+print_warning() {
+    echo -e "${YELLOW}[WARNING]${NC} $*"
+}
+
+print_error() {
+    echo -e "${RED}[ERROR]${NC} $*" >&2
+}
+
+print_header() {
+    echo ""
+    echo "========================================="
+    echo "$*"
+    echo "========================================="
+    echo ""
+}
+
+#############################################
+# Detection Functions
+#############################################
+
+check_component() {
+    local component_path="$1"
+    local component_name="$2"
+
+    if [[ -e "${component_path}" ]]; then
+        print_info "Found: ${component_name}"
+        return 0
+    else
+        print_warning "Not found: ${component_name}"
+        return 1
+    fi
+}
+
+detect_installation() {
+    print_header "Detecting Installation"
+
+    local found_any=false
+
+    # Check script
+    if check_component "${SCRIPT_DIR}/${SCRIPT_NAME}" "Script"; then
+        found_any=true
+    fi
+
+    # Check app bundle
+    if check_component "${APP_DIR}/${APP_NAME}" "App Bundle"; then
+        found_any=true
+    fi
+
+    # Check plist
+    if check_component "${PLIST_DIR}/${PLIST_NAME}" "Launchd Plist"; then
+        found_any=true
+    fi
+
+    # Check config
+    if check_component "${CONFIG_DIR}" "Configuration Directory"; then
+        found_any=true
+    fi
+
+    # Check logs
+    if check_component "${LOG_DIR}" "Log Directory"; then
+        found_any=true
+    fi
+
+    echo ""
+
+    if [[ "${found_any}" == "false" ]]; then
+        print_warning "No installation components found"
+        return 1
+    fi
+
+    return 0
+}
+
+#############################################
+# Uninstallation Functions
+#############################################
+
+unload_launchd_job() {
+    local plist_path="${PLIST_DIR}/${PLIST_NAME}"
+
+    if [[ ! -f "${plist_path}" ]]; then
+        print_info "Launchd plist not found, skipping unload"
+        return 0
+    fi
+
+    # Check if job is loaded
+    if launchctl list | grep -q "com.emkaytec.homebrewconfig"; then
+        print_info "Unloading launchd job..."
+
+        if [[ "${DRY_RUN}" == "true" ]]; then
+            print_info "[DRY RUN] Would unload: ${plist_path}"
+        else
+            if launchctl unload "${plist_path}" 2>/dev/null; then
+                print_success "Launchd job unloaded"
+            else
+                print_warning "Failed to unload launchd job (may not be loaded)"
+            fi
+        fi
+    else
+        print_info "Launchd job is not loaded"
+    fi
+}
+
+remove_script() {
+    local script_path="${SCRIPT_DIR}/${SCRIPT_NAME}"
+
+    if [[ ! -f "${script_path}" ]]; then
+        print_info "Script not found, skipping removal"
+        return 0
+    fi
+
+    print_info "Removing script..."
+
+    if [[ "${DRY_RUN}" == "true" ]]; then
+        print_info "[DRY RUN] Would remove: ${script_path}"
+    else
+        if rm -f "${script_path}"; then
+            print_success "Script removed: ${script_path}"
+        else
+            print_error "Failed to remove script: ${script_path}"
+            return 1
+        fi
+    fi
+}
+
+remove_app_bundle() {
+    local app_path="${APP_DIR}/${APP_NAME}"
+
+    if [[ ! -d "${app_path}" ]]; then
+        print_info "App bundle not found, skipping removal"
+        return 0
+    fi
+
+    print_info "Removing app bundle..."
+
+    if [[ "${DRY_RUN}" == "true" ]]; then
+        print_info "[DRY RUN] Would remove: ${app_path}"
+    else
+        if rm -rf "${app_path}"; then
+            print_success "App bundle removed: ${app_path}"
+        else
+            print_error "Failed to remove app bundle: ${app_path}"
+            return 1
+        fi
+    fi
+}
+
+remove_plist() {
+    local plist_path="${PLIST_DIR}/${PLIST_NAME}"
+
+    if [[ ! -f "${plist_path}" ]]; then
+        print_info "Plist not found, skipping removal"
+        return 0
+    fi
+
+    print_info "Removing launchd plist..."
+
+    if [[ "${DRY_RUN}" == "true" ]]; then
+        print_info "[DRY RUN] Would remove: ${plist_path}"
+    else
+        if rm -f "${plist_path}"; then
+            print_success "Launchd plist removed: ${plist_path}"
+        else
+            print_error "Failed to remove plist: ${plist_path}"
+            return 1
+        fi
+    fi
+}
+
+remove_config() {
+    if [[ "${KEEP_CONFIG}" == "true" ]]; then
+        print_info "Keeping configuration directory (--keep-config specified)"
+        return 0
+    fi
+
+    if [[ ! -d "${CONFIG_DIR}" ]]; then
+        print_info "Configuration directory not found, skipping removal"
+        return 0
+    fi
+
+    print_info "Removing configuration directory..."
+
+    if [[ "${DRY_RUN}" == "true" ]]; then
+        print_info "[DRY RUN] Would remove: ${CONFIG_DIR}"
+    else
+        if rm -rf "${CONFIG_DIR}"; then
+            print_success "Configuration removed: ${CONFIG_DIR}"
+        else
+            print_error "Failed to remove configuration: ${CONFIG_DIR}"
+            return 1
+        fi
+    fi
+}
+
+remove_logs() {
+    if [[ "${KEEP_LOGS}" == "true" ]]; then
+        print_info "Keeping log directory (--keep-logs specified)"
+        return 0
+    fi
+
+    if [[ ! -d "${LOG_DIR}" ]]; then
+        print_info "Log directory not found, skipping removal"
+        return 0
+    fi
+
+    print_info "Removing log directory..."
+
+    if [[ "${DRY_RUN}" == "true" ]]; then
+        print_info "[DRY RUN] Would remove: ${LOG_DIR}"
+    else
+        if rm -rf "${LOG_DIR}"; then
+            print_success "Logs removed: ${LOG_DIR}"
+        else
+            print_error "Failed to remove logs: ${LOG_DIR}"
+            return 1
+        fi
+    fi
+}
+
+confirm_uninstall() {
+    if [[ "${FORCE}" == "true" ]]; then
+        return 0
+    fi
+
+    echo ""
+    print_warning "This will remove the Homebrew Config Automation application"
+    print_info "Your Brewfile and its destination directory will NOT be removed"
+    echo ""
+
+    read -p "Continue with uninstallation? (y/N): " -n 1 -r
+    echo ""
+
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        print_info "Uninstallation cancelled"
+        exit 0
+    fi
+}
+
+#############################################
+# Usage and Help Functions
+#############################################
+
 show_help() {
     cat << EOF
-Homebrew Configuration Management - Uninstallation Script v${SCRIPT_VERSION}
+Homebrew Configuration Automation - Uninstallation Script
 
-Removes all installed components from the system.
+Removes the automation application while preserving Brewfiles.
 
 USAGE:
-    uninstall.sh [OPTIONS]
+    $(basename "$0") [OPTIONS]
 
 OPTIONS:
-    -h, --help             Show this help message
-    -y, --yes              Skip confirmation prompt
-
-WHAT THIS SCRIPT REMOVES:
-    - Launchd job (if loaded)
-    - Application bundle from ~/Applications/
-    - Launchd plist file
-    - brew-config.sh script from ~/bin/
-    - Configuration directory (~/.config/homebrew-config/)
-    - Log directory (~/.local/share/homebrew-config/)
-
-WHAT THIS SCRIPT PRESERVES:
-    - Brewfile in destination directory (default: ~/Config/Brewfile)
-    - Destination directory itself
-    - Any other files in destination directory
+    --script-dir DIR    Script installation directory (default: ~/bin)
+    --app-dir DIR       Application bundle directory (default: ~/Applications)
+    --config-dir DIR    Configuration directory (default: ~/.config/homebrew-config)
+    --plist-dir DIR     LaunchAgent plist directory (default: ~/Library/LaunchAgents)
+    --log-dir DIR       Log directory (default: ~/.local/share/homebrew-config)
+    --keep-config       Keep configuration directory
+    --keep-logs         Keep log directory
+    --dry-run           Show what would be removed without removing
+    -f, --force         Skip confirmation prompt
+    -h, --help          Show this help message
 
 EXAMPLES:
     # Uninstall with confirmation
-    ./uninstall.sh
-    
-    # Uninstall without confirmation
-    ./uninstall.sh --yes
+    $(basename "$0")
 
+    # Uninstall and keep configuration
+    $(basename "$0") --keep-config
+
+    # Uninstall and keep logs
+    $(basename "$0") --keep-logs
+
+    # Preview what would be removed
+    $(basename "$0") --dry-run
+
+    # Uninstall without confirmation
+    $(basename "$0") --force
+
+    # Keep both config and logs
+    $(basename "$0") --keep-config --keep-logs
+
+WHAT WILL BE REMOVED:
+    - Script: ~/bin/brew-config.sh
+    - App Bundle: ~/Applications/Homebrew Config Automation.app
+    - Plist: ~/Library/LaunchAgents/com.emkaytec.homebrewconfig.plist
+    - Config: ~/.config/homebrew-config/ (unless --keep-config)
+    - Logs: ~/.local/share/homebrew-config/ (unless --keep-logs)
+
+WHAT WILL NOT BE REMOVED:
+    - Your Brewfile and its destination directory
+    - Homebrew itself and installed packages
+    - Any Git repositories containing Brewfiles
+
+NOTE:
+    This script does NOT remove Homebrew or any packages installed via Homebrew.
+    It only removes the automation application components.
 EOF
 }
 
-#######################################
-# Unload the launchd job if it is loaded
-# Arguments:
-#   None
-# Returns:
-#   0 on success or if not loaded, 1 on failure
-#######################################
-unload_launchd() {
-    echo "Checking launchd job..."
-    
-    # Check if plist file exists
-    if [[ ! -f "${PLIST_FILE}" ]]; then
-        echo "  Plist file not found, skipping"
-        return 0
-    fi
-    
-    # Check if job is loaded
-    if launchctl list | grep -q "${PLIST_LABEL}"; then
-        echo "  Unloading launchd job: ${PLIST_LABEL}"
-        if launchctl unload "${PLIST_FILE}" 2>/dev/null; then
-            echo "  ✓ Launchd job unloaded"
-            REMOVED_ITEMS+=("Launchd job (${PLIST_LABEL})")
-        else
-            echo "  ERROR: Failed to unload launchd job" >&2
-            FAILED_ITEMS+=("Launchd job (${PLIST_LABEL})")
-            return 1
-        fi
-    else
-        echo "  Launchd job not loaded, skipping"
-    fi
-    
-    return 0
-}
-
-#######################################
-# Remove application bundle from ~/Applications/
-# Arguments:
-#   None
-# Returns:
-#   0 on success or if not present, 1 on failure
-#######################################
-remove_app_bundle() {
-    echo "Removing application bundle..."
-    
-    if [[ ! -d "${APP_BUNDLE}" ]]; then
-        echo "  Application bundle not found, skipping"
-        return 0
-    fi
-    
-    if rm -rf "${APP_BUNDLE}" 2>/dev/null; then
-        echo "  ✓ Application bundle removed: ${APP_BUNDLE}"
-        REMOVED_ITEMS+=("Application bundle")
-    else
-        echo "  ERROR: Failed to remove application bundle: ${APP_BUNDLE}" >&2
-        FAILED_ITEMS+=("Application bundle")
-        return 1
-    fi
-    
-    return 0
-}
-
-#######################################
-# Remove launchd plist file
-# Arguments:
-#   None
-# Returns:
-#   0 on success or if not present, 1 on failure
-#######################################
-remove_plist() {
-    echo "Removing launchd plist..."
-    
-    if [[ ! -f "${PLIST_FILE}" ]]; then
-        echo "  Plist file not found, skipping"
-        return 0
-    fi
-    
-    if rm -f "${PLIST_FILE}" 2>/dev/null; then
-        echo "  ✓ Plist file removed: ${PLIST_FILE}"
-        REMOVED_ITEMS+=("Launchd plist file")
-    else
-        echo "  ERROR: Failed to remove plist file: ${PLIST_FILE}" >&2
-        FAILED_ITEMS+=("Launchd plist file")
-        return 1
-    fi
-    
-    return 0
-}
-
-#######################################
-# Remove brew-config.sh script from installation location
-# Arguments:
-#   None
-# Returns:
-#   0 on success or if not present, 1 on failure
-#######################################
-remove_script() {
-    echo "Removing brew-config.sh script..."
-    
-    local script_path="${INSTALL_DIR}/brew-config.sh"
-    
-    if [[ ! -f "${script_path}" ]]; then
-        echo "  Script not found, skipping"
-        return 0
-    fi
-    
-    if rm -f "${script_path}" 2>/dev/null; then
-        echo "  ✓ Script removed: ${script_path}"
-        REMOVED_ITEMS+=("brew-config.sh script")
-    else
-        echo "  ERROR: Failed to remove script: ${script_path}" >&2
-        FAILED_ITEMS+=("brew-config.sh script")
-        return 1
-    fi
-    
-    return 0
-}
-
-#######################################
-# Remove configuration directory and files
-# Arguments:
-#   None
-# Returns:
-#   0 on success or if not present, 1 on failure
-#######################################
-remove_config() {
-    echo "Removing configuration directory..."
-    
-    if [[ ! -d "${CONFIG_DIR}" ]]; then
-        echo "  Configuration directory not found, skipping"
-        return 0
-    fi
-    
-    if rm -rf "${CONFIG_DIR}" 2>/dev/null; then
-        echo "  ✓ Configuration directory removed: ${CONFIG_DIR}"
-        REMOVED_ITEMS+=("Configuration directory")
-    else
-        echo "  ERROR: Failed to remove configuration directory: ${CONFIG_DIR}" >&2
-        FAILED_ITEMS+=("Configuration directory")
-        return 1
-    fi
-    
-    return 0
-}
-
-#######################################
-# Remove log directory and all log files
-# Arguments:
-#   None
-# Returns:
-#   0 on success or if not present, 1 on failure
-#######################################
-remove_logs() {
-    echo "Removing log directory..."
-    
-    if [[ ! -d "${LOG_DIR}" ]]; then
-        echo "  Log directory not found, skipping"
-        return 0
-    fi
-    
-    if rm -rf "${LOG_DIR}" 2>/dev/null; then
-        echo "  ✓ Log directory removed: ${LOG_DIR}"
-        REMOVED_ITEMS+=("Log directory")
-    else
-        echo "  ERROR: Failed to remove log directory: ${LOG_DIR}" >&2
-        FAILED_ITEMS+=("Log directory")
-        return 1
-    fi
-    
-    return 0
-}
-
-#######################################
-# Verify that all components have been removed
-# Arguments:
-#   None
-# Returns:
-#   0 if all removed, 1 if any remain
-#######################################
-verify_uninstallation() {
-    echo "Verifying uninstallation..."
-    
-    local verification_failed=false
-    
-    # Check if script still exists
-    if [[ -f "${INSTALL_DIR}/brew-config.sh" ]]; then
-        echo "  WARNING: Script still exists: ${INSTALL_DIR}/brew-config.sh" >&2
-        verification_failed=true
-    fi
-    
-    # Check if app bundle still exists
-    if [[ -d "${APP_BUNDLE}" ]]; then
-        echo "  WARNING: Application bundle still exists: ${APP_BUNDLE}" >&2
-        verification_failed=true
-    fi
-    
-    # Check if plist still exists
-    if [[ -f "${PLIST_FILE}" ]]; then
-        echo "  WARNING: Plist file still exists: ${PLIST_FILE}" >&2
-        verification_failed=true
-    fi
-    
-    # Check if config directory still exists
-    if [[ -d "${CONFIG_DIR}" ]]; then
-        echo "  WARNING: Configuration directory still exists: ${CONFIG_DIR}" >&2
-        verification_failed=true
-    fi
-    
-    # Check if log directory still exists
-    if [[ -d "${LOG_DIR}" ]]; then
-        echo "  WARNING: Log directory still exists: ${LOG_DIR}" >&2
-        verification_failed=true
-    fi
-    
-    # Check if launchd job is still loaded
-    if launchctl list | grep -q "${PLIST_LABEL}"; then
-        echo "  WARNING: Launchd job still loaded: ${PLIST_LABEL}" >&2
-        verification_failed=true
-    fi
-    
-    if [[ "${verification_failed}" == true ]]; then
-        echo "  Some components could not be removed"
-        return 1
-    fi
-    
-    echo "  ✓ All components successfully removed"
-    return 0
-}
-
-#######################################
-# Display summary of what was removed
-# Arguments:
-#   None
-# Outputs:
-#   Summary to stdout
-#######################################
-display_summary() {
-    echo "=========================================="
-    echo "Uninstallation Summary"
-    echo "=========================================="
-    echo
-    
-    if [[ ${#REMOVED_ITEMS[@]} -gt 0 ]]; then
-        echo "Successfully removed:"
-        for item in "${REMOVED_ITEMS[@]}"; do
-            echo "  ✓ ${item}"
-        done
-        echo
-    fi
-    
-    if [[ ${#FAILED_ITEMS[@]} -gt 0 ]]; then
-        echo "Failed to remove:"
-        for item in "${FAILED_ITEMS[@]}"; do
-            echo "  ✗ ${item}"
-        done
-        echo
-    fi
-    
-    echo "Preserved items:"
-    echo "  ✓ Brewfile in destination directory"
-    echo "  ✓ Destination directory"
-    echo
-    
-    if [[ ${#FAILED_ITEMS[@]} -eq 0 ]]; then
-        echo "Uninstallation completed successfully!"
-    else
-        echo "Uninstallation completed with errors"
-        echo "Some components may need to be removed manually"
-    fi
-    echo
-}
-
-#######################################
-# Main uninstallation function
-# Orchestrates the uninstallation process
-# Arguments:
-#   $@ - Command-line arguments
-# Returns:
-#   0 on success, 1 on failure
-#######################################
-main() {
-    local skip_confirmation=false
-    
-    # Parse arguments
+parse_arguments() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
+            --script-dir)
+                if [[ -z "${2:-}" ]]; then
+                    print_error "--script-dir requires a value"
+                    exit 2
+                fi
+                SCRIPT_DIR="$2"
+                shift 2
+                ;;
+            --app-dir)
+                if [[ -z "${2:-}" ]]; then
+                    print_error "--app-dir requires a value"
+                    exit 2
+                fi
+                APP_DIR="$2"
+                shift 2
+                ;;
+            --config-dir)
+                if [[ -z "${2:-}" ]]; then
+                    print_error "--config-dir requires a value"
+                    exit 2
+                fi
+                CONFIG_DIR="$2"
+                shift 2
+                ;;
+            --plist-dir)
+                if [[ -z "${2:-}" ]]; then
+                    print_error "--plist-dir requires a value"
+                    exit 2
+                fi
+                PLIST_DIR="$2"
+                shift 2
+                ;;
+            --log-dir)
+                if [[ -z "${2:-}" ]]; then
+                    print_error "--log-dir requires a value"
+                    exit 2
+                fi
+                LOG_DIR="$2"
+                shift 2
+                ;;
+            --keep-config)
+                KEEP_CONFIG=true
+                shift
+                ;;
+            --keep-logs)
+                KEEP_LOGS=true
+                shift
+                ;;
+            --dry-run)
+                DRY_RUN=true
+                shift
+                ;;
+            -f|--force)
+                FORCE=true
+                shift
+                ;;
             -h|--help)
                 show_help
                 exit 0
                 ;;
-            -y|--yes)
-                skip_confirmation=true
-                shift
-                ;;
             *)
-                echo "ERROR: Unknown option: $1" >&2
-                echo "Use --help for usage information" >&2
-                exit 1
+                print_error "Unknown option: $1"
+                echo "Use --help to see available options"
+                exit 2
                 ;;
         esac
     done
-    
-    echo "=========================================="
-    echo "Homebrew Configuration Management"
-    echo "Uninstallation Script v${SCRIPT_VERSION}"
-    echo "=========================================="
-    echo
-    
-    # Check if running on macOS
-    if [[ "$(uname)" != "Darwin" ]]; then
-        echo "ERROR: This script is designed for macOS only" >&2
-        exit 1
+
+    # Expand tilde in paths
+    SCRIPT_DIR="${SCRIPT_DIR/#\~/$HOME}"
+    APP_DIR="${APP_DIR/#\~/$HOME}"
+    CONFIG_DIR="${CONFIG_DIR/#\~/$HOME}"
+    PLIST_DIR="${PLIST_DIR/#\~/$HOME}"
+    LOG_DIR="${LOG_DIR/#\~/$HOME}"
+}
+
+#############################################
+# Main Function
+#############################################
+
+main() {
+    print_header "Homebrew Config Automation - Uninstaller"
+
+    # Parse arguments
+    parse_arguments "$@"
+
+    # Show dry run notice
+    if [[ "${DRY_RUN}" == "true" ]]; then
+        print_warning "DRY RUN MODE - No files will be removed"
+        echo ""
     fi
-    
-    # Show what will be removed
-    echo "This script will remove the following components:"
-    echo "  - Launchd job (if loaded)"
-    echo "  - Application bundle: ${APP_BUNDLE}"
-    echo "  - Launchd plist: ${PLIST_FILE}"
-    echo "  - Script: ${INSTALL_DIR}/brew-config.sh"
-    echo "  - Configuration: ${CONFIG_DIR}"
-    echo "  - Logs: ${LOG_DIR}"
-    echo
-    echo "The following will be PRESERVED:"
-    echo "  - Brewfile in destination directory"
-    echo "  - Destination directory itself"
-    echo
-    
-    # Confirmation prompt
-    if [[ "${skip_confirmation}" == false ]]; then
-        read -p "Do you want to continue? (y/N): " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            echo "Uninstallation cancelled"
-            exit 0
+
+    # Detect what's installed
+    if ! detect_installation; then
+        print_info "Nothing to uninstall"
+        exit 0
+    fi
+
+    # Confirm uninstall (unless --force or --dry-run)
+    if [[ "${DRY_RUN}" != "true" ]]; then
+        confirm_uninstall
+    fi
+
+    print_header "Uninstalling Components"
+
+    # Unload launchd job first
+    unload_launchd_job
+
+    # Remove components
+    remove_script
+    remove_app_bundle
+    remove_plist
+    remove_config
+    remove_logs
+
+    # Final summary
+    if [[ "${DRY_RUN}" == "true" ]]; then
+        print_header "Dry Run Complete"
+        print_info "No files were actually removed"
+        print_info "Run without --dry-run to perform uninstallation"
+    else
+        print_header "Uninstallation Complete!"
+
+        echo "The following components have been removed:"
+        echo "  - Homebrew Config Automation script"
+        echo "  - Application bundle"
+        echo "  - Launchd plist"
+
+        if [[ "${KEEP_CONFIG}" == "true" ]]; then
+            echo "  - Configuration (kept as requested)"
+        else
+            echo "  - Configuration directory"
         fi
-        echo
+
+        if [[ "${KEEP_LOGS}" == "true" ]]; then
+            echo "  - Logs (kept as requested)"
+        else
+            echo "  - Log directory"
+        fi
+
+        echo ""
+        print_success "Uninstallation successful!"
+        echo ""
+        print_info "Your Brewfile and its destination directory were preserved"
+        print_info "Homebrew and all installed packages remain untouched"
+
+        if [[ "${KEEP_CONFIG}" == "true" ]] || [[ "${KEEP_LOGS}" == "true" ]]; then
+            echo ""
+            print_info "To manually remove kept files:"
+            if [[ "${KEEP_CONFIG}" == "true" ]]; then
+                echo "  rm -rf ${CONFIG_DIR}"
+            fi
+            if [[ "${KEEP_LOGS}" == "true" ]]; then
+                echo "  rm -rf ${LOG_DIR}"
+            fi
+        fi
     fi
-    
-    # Unload launchd job (continue on failure)
-    unload_launchd || true
-    
-    # Remove application bundle (continue on failure)
-    remove_app_bundle || true
-    
-    # Remove plist file (continue on failure)
-    remove_plist || true
-    
-    # Remove script (continue on failure)
-    remove_script || true
-    
-    # Remove configuration directory (continue on failure)
-    remove_config || true
-    
-    # Remove log directory (continue on failure)
-    remove_logs || true
-    
-    echo
-    
-    # Verify uninstallation
-    verify_uninstallation || true
-    
-    echo
-    
-    # Display summary
-    display_summary
-    
-    # Exit with error if any items failed to remove
-    if [[ ${#FAILED_ITEMS[@]} -gt 0 ]]; then
-        return 1
-    fi
-    
-    return 0
 }
 
 # Run main function

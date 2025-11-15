@@ -1,94 +1,374 @@
-#!/usr/bin/env bash
+#!/bin/bash
 #
-# Homebrew Configuration Management - Installation Script
-# Installs the brew-config.sh script and sets up the environment
-#
-# Version: 1.0.0
+# Installation Script for Homebrew Configuration Automation
+# Deploys the script, application bundle, and generates launchd plist
 #
 
-set -euo pipefail
+set -e  # Exit on error
+set -u  # Exit on undefined variable
 
-# Script version
-readonly SCRIPT_VERSION="1.0.0"
+# Color codes for output
+readonly RED='\033[0;31m'
+readonly GREEN='\033[0;32m'
+readonly YELLOW='\033[1;33m'
+readonly BLUE='\033[0;34m'
+readonly NC='\033[0m' # No Color
 
-# Default installation paths
-DEFAULT_INSTALL_DIR="${HOME}/bin"
+# Default installation locations
+DEFAULT_SCRIPT_DIR="${HOME}/bin"
+DEFAULT_APP_DIR="${HOME}/Applications"
 DEFAULT_CONFIG_DIR="${HOME}/.config/homebrew-config"
+DEFAULT_PLIST_DIR="${HOME}/Library/LaunchAgents"
 
-# Installation paths (can be overridden)
-INSTALL_DIR="${DEFAULT_INSTALL_DIR}"
-CONFIG_DIR="${DEFAULT_CONFIG_DIR}"
+# Installation variables
+SCRIPT_DIR=""
+APP_DIR=""
+CONFIG_DIR=""
+PLIST_DIR=""
+SCHEDULE_HOUR=2
+SCHEDULE_MINUTE=0
 
-#######################################
-# Display installation help message
-# Arguments:
-#   None
-# Outputs:
-#   Help text to stdout
-#######################################
+# Script information
+readonly SCRIPT_NAME="brew-config.sh"
+readonly APP_NAME="Homebrew Config Automation.app"
+readonly PLIST_NAME="com.emkaytec.homebrewconfig.plist"
+readonly CONFIG_EXAMPLE="config.sh.example"
+
+#############################################
+# Output Functions
+#############################################
+
+print_info() {
+    echo -e "${BLUE}[INFO]${NC} $*"
+}
+
+print_success() {
+    echo -e "${GREEN}[SUCCESS]${NC} $*"
+}
+
+print_warning() {
+    echo -e "${YELLOW}[WARNING]${NC} $*"
+}
+
+print_error() {
+    echo -e "${RED}[ERROR]${NC} $*" >&2
+}
+
+print_header() {
+    echo ""
+    echo "========================================="
+    echo "$*"
+    echo "========================================="
+    echo ""
+}
+
+#############################################
+# Validation Functions
+#############################################
+
+check_prerequisites() {
+    print_info "Checking prerequisites..."
+
+    # Check for macOS
+    if [[ "$(uname -s)" != "Darwin" ]]; then
+        print_error "This script is designed for macOS only"
+        exit 1
+    fi
+
+    # Check for required files
+    if [[ ! -f "${SCRIPT_NAME}" ]]; then
+        print_error "Script not found: ${SCRIPT_NAME}"
+        print_error "Please run this installer from the repository directory"
+        exit 1
+    fi
+
+    if [[ ! -d "${APP_NAME}" ]]; then
+        print_error "Application bundle not found: ${APP_NAME}"
+        print_error "Please run this installer from the repository directory"
+        exit 1
+    fi
+
+    if [[ ! -f "${CONFIG_EXAMPLE}" ]]; then
+        print_warning "Configuration example not found: ${CONFIG_EXAMPLE}"
+        print_warning "Configuration example will not be installed"
+    fi
+
+    print_success "Prerequisites check passed"
+}
+
+#############################################
+# Installation Functions
+#############################################
+
+install_script() {
+    print_info "Installing script to ${SCRIPT_DIR}..."
+
+    # Create script directory if it doesn't exist
+    if [[ ! -d "${SCRIPT_DIR}" ]]; then
+        mkdir -p "${SCRIPT_DIR}"
+        print_info "Created directory: ${SCRIPT_DIR}"
+    fi
+
+    # Copy script
+    if cp "${SCRIPT_NAME}" "${SCRIPT_DIR}/${SCRIPT_NAME}"; then
+        chmod +x "${SCRIPT_DIR}/${SCRIPT_NAME}"
+        print_success "Script installed: ${SCRIPT_DIR}/${SCRIPT_NAME}"
+    else
+        print_error "Failed to install script"
+        exit 1
+    fi
+
+    # Add to PATH if not already there
+    if [[ ":${PATH}:" != *":${SCRIPT_DIR}:"* ]]; then
+        print_warning "Note: ${SCRIPT_DIR} is not in your PATH"
+        print_info "Add the following line to your ~/.zshrc or ~/.bash_profile:"
+        echo ""
+        echo "    export PATH=\"${SCRIPT_DIR}:\$PATH\""
+        echo ""
+    fi
+}
+
+deploy_app_bundle() {
+    print_info "Deploying application bundle to ${APP_DIR}..."
+
+    # Create applications directory if it doesn't exist
+    if [[ ! -d "${APP_DIR}" ]]; then
+        mkdir -p "${APP_DIR}"
+        print_info "Created directory: ${APP_DIR}"
+    fi
+
+    # Remove existing app bundle if present
+    if [[ -d "${APP_DIR}/${APP_NAME}" ]]; then
+        print_info "Removing existing application bundle..."
+        rm -rf "${APP_DIR}/${APP_NAME}"
+    fi
+
+    # Copy application bundle
+    if cp -R "${APP_NAME}" "${APP_DIR}/"; then
+        print_success "Application bundle deployed: ${APP_DIR}/${APP_NAME}"
+    else
+        print_error "Failed to deploy application bundle"
+        exit 1
+    fi
+}
+
+create_config() {
+    print_info "Setting up configuration..."
+
+    # Create config directory if it doesn't exist
+    if [[ ! -d "${CONFIG_DIR}" ]]; then
+        mkdir -p "${CONFIG_DIR}"
+        print_info "Created directory: ${CONFIG_DIR}"
+    fi
+
+    # Copy example configuration if it exists and user config doesn't
+    local config_file="${CONFIG_DIR}/config.sh"
+    if [[ -f "${CONFIG_EXAMPLE}" && ! -f "${config_file}" ]]; then
+        if cp "${CONFIG_EXAMPLE}" "${config_file}"; then
+            chmod 600 "${config_file}"
+            print_success "Configuration file created: ${config_file}"
+            print_info "Edit this file to customize your settings"
+        else
+            print_warning "Failed to create configuration file"
+        fi
+    elif [[ -f "${config_file}" ]]; then
+        print_info "Configuration file already exists: ${config_file}"
+    else
+        print_warning "No configuration example to copy"
+    fi
+}
+
+generate_plist() {
+    print_info "Generating launchd plist..."
+
+    # Create LaunchAgents directory if it doesn't exist
+    if [[ ! -d "${PLIST_DIR}" ]]; then
+        mkdir -p "${PLIST_DIR}"
+        print_info "Created directory: ${PLIST_DIR}"
+    fi
+
+    local plist_path="${PLIST_DIR}/${PLIST_NAME}"
+    local app_executable="${APP_DIR}/${APP_NAME}/Contents/MacOS/Homebrew Config Automation"
+    local log_dir="${HOME}/.local/share/homebrew-config/logs"
+
+    # Create log directory
+    mkdir -p "${log_dir}"
+
+    # Generate plist content
+    cat > "${plist_path}" << EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.emkaytec.homebrewconfig</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>${app_executable}</string>
+	</array>
+	<key>StartCalendarInterval</key>
+	<dict>
+		<key>Hour</key>
+		<integer>${SCHEDULE_HOUR}</integer>
+		<key>Minute</key>
+		<integer>${SCHEDULE_MINUTE}</integer>
+	</dict>
+	<key>StandardOutPath</key>
+	<string>${log_dir}/launchd-stdout.log</string>
+	<key>StandardErrorPath</key>
+	<string>${log_dir}/launchd-stderr.log</string>
+	<key>RunAtLoad</key>
+	<false/>
+</dict>
+</plist>
+EOF
+
+    if [[ $? -eq 0 ]]; then
+        chmod 644 "${plist_path}"
+        print_success "Launchd plist created: ${plist_path}"
+    else
+        print_error "Failed to generate launchd plist"
+        exit 1
+    fi
+}
+
+verify_installation() {
+    print_info "Verifying installation..."
+
+    local all_good=true
+
+    # Check script
+    if [[ -x "${SCRIPT_DIR}/${SCRIPT_NAME}" ]]; then
+        print_success "Script verified: ${SCRIPT_DIR}/${SCRIPT_NAME}"
+    else
+        print_error "Script verification failed"
+        all_good=false
+    fi
+
+    # Check app bundle
+    if [[ -d "${APP_DIR}/${APP_NAME}" ]]; then
+        print_success "App bundle verified: ${APP_DIR}/${APP_NAME}"
+    else
+        print_error "App bundle verification failed"
+        all_good=false
+    fi
+
+    # Check plist
+    if [[ -f "${PLIST_DIR}/${PLIST_NAME}" ]]; then
+        print_success "Plist verified: ${PLIST_DIR}/${PLIST_NAME}"
+    else
+        print_error "Plist verification failed"
+        all_good=false
+    fi
+
+    if [[ "${all_good}" == "true" ]]; then
+        print_success "All components verified successfully"
+        return 0
+    else
+        print_error "Installation verification failed"
+        return 1
+    fi
+}
+
+#############################################
+# Usage and Help Functions
+#############################################
+
 show_help() {
     cat << EOF
-Homebrew Configuration Management - Installation Script v${SCRIPT_VERSION}
+Homebrew Configuration Automation - Installation Script
 
-Installs brew-config.sh and sets up the environment.
+Installs the brew-config.sh script, application bundle, and generates
+the launchd plist for scheduled execution.
 
 USAGE:
-    install.sh [OPTIONS]
+    $(basename "$0") [OPTIONS]
 
 OPTIONS:
-    -i, --install-dir DIR    Installation directory for script
-                            Default: ~/bin
-    
-    -c, --config-dir DIR    Configuration directory
-                            Default: ~/.config/homebrew-config
-    
+    --script-dir DIR       Script installation directory (default: ~/bin)
+    --app-dir DIR          Application bundle directory (default: ~/Applications)
+    --config-dir DIR       Configuration directory (default: ~/.config/homebrew-config)
+    --plist-dir DIR        LaunchAgent plist directory (default: ~/Library/LaunchAgents)
+    --schedule-hour HOUR   Schedule hour (0-23, default: 2)
+    --schedule-minute MIN  Schedule minute (0-59, default: 0)
     -h, --help             Show this help message
 
 EXAMPLES:
-    # Install with defaults
-    ./install.sh
-    
-    # Install to custom directory
-    ./install.sh --install-dir /usr/local/bin
+    # Install with default settings
+    $(basename "$0")
 
-WHAT THIS SCRIPT DOES:
-    1. Copies brew-config.sh to installation directory
-    2. Creates configuration directory
-    3. Copies config.sh.example to configuration directory
-    4. Deploys application bundle to ~/Applications/
-    5. Generates launchd plist file (default schedule: daily at 02:00)
-    6. Verifies installation
+    # Install to custom locations
+    $(basename "$0") --script-dir /usr/local/bin --app-dir /Applications
 
+    # Set custom schedule (daily at 3:30 AM)
+    $(basename "$0") --schedule-hour 3 --schedule-minute 30
+
+INSTALLATION LOCATIONS:
+    Script:     ~/bin/brew-config.sh
+    App Bundle: ~/Applications/Homebrew Config Automation.app
+    Plist:      ~/Library/LaunchAgents/com.emkaytec.homebrewconfig.plist
+    Config:     ~/.config/homebrew-config/config.sh
+
+After installation, load the scheduled job with:
+    launchctl load ~/Library/LaunchAgents/com.emkaytec.homebrewconfig.plist
 EOF
 }
 
-#######################################
-# Parse installation command-line arguments
-# Globals:
-#   INSTALL_DIR - Installation directory
-#   CONFIG_DIR - Configuration directory
-# Arguments:
-#   $@ - All command-line arguments
-# Returns:
-#   0 on success, 1 on error
-#######################################
-parse_install_arguments() {
+parse_arguments() {
+    # Set defaults
+    SCRIPT_DIR="${DEFAULT_SCRIPT_DIR}"
+    APP_DIR="${DEFAULT_APP_DIR}"
+    CONFIG_DIR="${DEFAULT_CONFIG_DIR}"
+    PLIST_DIR="${DEFAULT_PLIST_DIR}"
+
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            -i|--install-dir)
+            --script-dir)
                 if [[ -z "${2:-}" ]]; then
-                    echo "ERROR: --install-dir requires a directory path" >&2
-                    return 1
+                    print_error "--script-dir requires a value"
+                    exit 2
                 fi
-                INSTALL_DIR="$2"
+                SCRIPT_DIR="$2"
                 shift 2
                 ;;
-            -c|--config-dir)
+            --app-dir)
                 if [[ -z "${2:-}" ]]; then
-                    echo "ERROR: --config-dir requires a directory path" >&2
-                    return 1
+                    print_error "--app-dir requires a value"
+                    exit 2
+                fi
+                APP_DIR="$2"
+                shift 2
+                ;;
+            --config-dir)
+                if [[ -z "${2:-}" ]]; then
+                    print_error "--config-dir requires a value"
+                    exit 2
                 fi
                 CONFIG_DIR="$2"
+                shift 2
+                ;;
+            --plist-dir)
+                if [[ -z "${2:-}" ]]; then
+                    print_error "--plist-dir requires a value"
+                    exit 2
+                fi
+                PLIST_DIR="$2"
+                shift 2
+                ;;
+            --schedule-hour)
+                if [[ -z "${2:-}" ]] || ! [[ "$2" =~ ^[0-9]+$ ]] || [[ "$2" -lt 0 ]] || [[ "$2" -gt 23 ]]; then
+                    print_error "--schedule-hour must be between 0 and 23"
+                    exit 2
+                fi
+                SCHEDULE_HOUR="$2"
+                shift 2
+                ;;
+            --schedule-minute)
+                if [[ -z "${2:-}" ]] || ! [[ "$2" =~ ^[0-9]+$ ]] || [[ "$2" -lt 0 ]] || [[ "$2" -gt 59 ]]; then
+                    print_error "--schedule-minute must be between 0 and 59"
+                    exit 2
+                fi
+                SCHEDULE_MINUTE="$2"
                 shift 2
                 ;;
             -h|--help)
@@ -96,436 +376,72 @@ parse_install_arguments() {
                 exit 0
                 ;;
             *)
-                echo "ERROR: Unknown option: $1" >&2
-                echo "Use --help for usage information" >&2
-                return 1
+                print_error "Unknown option: $1"
+                echo "Use --help to see available options"
+                exit 2
                 ;;
         esac
     done
-    
-    return 0
-}
 
-#######################################
-# Install the brew-config.sh script
-# Copies script to installation directory
-# Globals:
-#   INSTALL_DIR - Installation directory
-# Arguments:
-#   None
-# Returns:
-#   0 on success, 1 on failure
-#######################################
-install_script() {
-    echo "Installing brew-config.sh..."
-    
     # Expand tilde in paths
-    INSTALL_DIR="${INSTALL_DIR/#\~/$HOME}"
-    
-    # Create installation directory if it doesn't exist
-    if [[ ! -d "${INSTALL_DIR}" ]]; then
-        echo "Creating installation directory: ${INSTALL_DIR}"
-        if ! mkdir -p "${INSTALL_DIR}"; then
-            echo "ERROR: Failed to create installation directory" >&2
-            return 1
-        fi
-    fi
-    
-    # Check if brew-config.sh exists in current directory
-    if [[ ! -f "brew-config.sh" ]]; then
-        echo "ERROR: brew-config.sh not found in current directory" >&2
-        return 1
-    fi
-    
-    # Copy script to installation directory
-    local dest_script="${INSTALL_DIR}/brew-config.sh"
-    if ! cp brew-config.sh "${dest_script}"; then
-        echo "ERROR: Failed to copy script to ${dest_script}" >&2
-        return 1
-    fi
-    
-    # Make script executable
-    if ! chmod +x "${dest_script}"; then
-        echo "ERROR: Failed to make script executable" >&2
-        return 1
-    fi
-    
-    echo "✓ Script installed to: ${dest_script}"
-    return 0
-}
-
-#######################################
-# Create configuration directory and files
-# Copies config.sh.example to configuration directory
-# Globals:
-#   CONFIG_DIR - Configuration directory
-# Arguments:
-#   None
-# Returns:
-#   0 on success, 1 on failure
-#######################################
-create_config() {
-    echo "Setting up configuration..."
-    
-    # Expand tilde in paths
+    SCRIPT_DIR="${SCRIPT_DIR/#\~/$HOME}"
+    APP_DIR="${APP_DIR/#\~/$HOME}"
     CONFIG_DIR="${CONFIG_DIR/#\~/$HOME}"
-    
-    # Create configuration directory
-    if [[ ! -d "${CONFIG_DIR}" ]]; then
-        echo "Creating configuration directory: ${CONFIG_DIR}"
-        if ! mkdir -p "${CONFIG_DIR}"; then
-            echo "ERROR: Failed to create configuration directory" >&2
-            return 1
-        fi
-    fi
-    
-    # Copy config.sh.example if it exists
-    if [[ -f "config.sh.example" ]]; then
-        local dest_config="${CONFIG_DIR}/config.sh.example"
-        if ! cp config.sh.example "${dest_config}"; then
-            echo "ERROR: Failed to copy config.sh.example" >&2
-            return 1
-        fi
-        echo "✓ Configuration example copied to: ${dest_config}"
-        
-        # Create actual config file if it doesn't exist
-        local config_file="${CONFIG_DIR}/config.sh"
-        if [[ ! -f "${config_file}" ]]; then
-            if cp config.sh.example "${config_file}"; then
-                echo "✓ Configuration file created: ${config_file}"
-                echo "  You can edit this file to customize settings"
-            fi
-        else
-            echo "  Configuration file already exists: ${config_file}"
-        fi
-    else
-        echo "WARNING: config.sh.example not found, skipping" >&2
-    fi
-    
-    return 0
+    PLIST_DIR="${PLIST_DIR/#\~/$HOME}"
 }
 
+#############################################
+# Main Function
+#############################################
 
-#######################################
-# Deploy pre-built application bundle
-# Copies the app bundle to ~/Applications/
-# Arguments:
-#   None
-# Returns:
-#   0 on success, 1 on failure
-#######################################
-deploy_app_bundle() {
-    echo "Deploying application bundle..."
-    
-    local app_bundle="Homebrew Config Automation.app"
-    local dest_dir="${HOME}/Applications"
-    local dest_app="${dest_dir}/${app_bundle}"
-    
-    # Check if app bundle exists in current directory
-    if [[ ! -d "${app_bundle}" ]]; then
-        echo "ERROR: Application bundle not found: ${app_bundle}" >&2
-        return 1
-    fi
-    
-    # Create ~/Applications if it doesn't exist
-    if [[ ! -d "${dest_dir}" ]]; then
-        echo "Creating Applications directory: ${dest_dir}"
-        if ! mkdir -p "${dest_dir}"; then
-            echo "ERROR: Failed to create Applications directory" >&2
-            return 1
-        fi
-    fi
-    
-    # Remove existing app bundle if present
-    if [[ -d "${dest_app}" ]]; then
-        echo "Removing existing app bundle..."
-        if ! rm -rf "${dest_app}"; then
-            echo "ERROR: Failed to remove existing app bundle" >&2
-            return 1
-        fi
-    fi
-    
-    # Copy app bundle
-    if ! cp -R "${app_bundle}" "${dest_app}"; then
-        echo "ERROR: Failed to copy app bundle to ${dest_app}" >&2
-        return 1
-    fi
-    
-    # Verify bundle structure
-    local wrapper_exec="${dest_app}/Contents/MacOS/Homebrew Config Automation"
-    if [[ ! -f "${wrapper_exec}" ]]; then
-        echo "ERROR: Wrapper executable not found in bundle" >&2
-        return 1
-    fi
-    
-    # Ensure wrapper is executable
-    if ! chmod +x "${wrapper_exec}"; then
-        echo "ERROR: Failed to make wrapper executable" >&2
-        return 1
-    fi
-    
-    echo "✓ Application bundle deployed to: ${dest_app}"
-    return 0
-}
-
-#######################################
-# Verify installation was successful
-# Checks that all files are in place and executable
-# Globals:
-#   INSTALL_DIR - Installation directory
-#   CONFIG_DIR - Configuration directory
-# Arguments:
-#   None
-# Returns:
-#   0 on success, 1 on failure
-#######################################
-verify_installation() {
-    echo "Verifying installation..."
-    
-    local verification_failed=false
-    local script_path="${INSTALL_DIR}/brew-config.sh"
-    local app_bundle="${HOME}/Applications/Homebrew Config Automation.app"
-    local wrapper_exec="${app_bundle}/Contents/MacOS/Homebrew Config Automation"
-    local plist_file="${HOME}/Library/LaunchAgents/com.emkaytec.homebrewconfig.plist"
-    
-    # Check script exists
-    if [[ ! -f "${script_path}" ]]; then
-        echo "ERROR: Script not found at ${script_path}" >&2
-        verification_failed=true
-    fi
-    
-    # Check script is executable
-    if [[ ! -x "${script_path}" ]]; then
-        echo "ERROR: Script is not executable: ${script_path}" >&2
-        verification_failed=true
-    fi
-    
-    # Check configuration directory exists
-    if [[ ! -d "${CONFIG_DIR}" ]]; then
-        echo "ERROR: Configuration directory not found: ${CONFIG_DIR}" >&2
-        verification_failed=true
-    fi
-    
-    # Check app bundle exists
-    if [[ ! -d "${app_bundle}" ]]; then
-        echo "ERROR: Application bundle not found: ${app_bundle}" >&2
-        verification_failed=true
-    fi
-    
-    # Check wrapper executable exists and is executable
-    if [[ ! -f "${wrapper_exec}" ]]; then
-        echo "ERROR: Wrapper executable not found: ${wrapper_exec}" >&2
-        verification_failed=true
-    elif [[ ! -x "${wrapper_exec}" ]]; then
-        echo "ERROR: Wrapper executable is not executable: ${wrapper_exec}" >&2
-        verification_failed=true
-    fi
-    
-    # Check plist file exists
-    if [[ ! -f "${plist_file}" ]]; then
-        echo "ERROR: Plist file not found: ${plist_file}" >&2
-        verification_failed=true
-    fi
-    
-    # Validate plist syntax
-    if [[ -f "${plist_file}" ]]; then
-        if ! plutil -lint "${plist_file}" &> /dev/null; then
-            echo "ERROR: Invalid plist syntax: ${plist_file}" >&2
-            verification_failed=true
-        fi
-    fi
-    
-    # Check permissions
-    if [[ ! -w "${INSTALL_DIR}" ]]; then
-        echo "WARNING: Installation directory is not writable: ${INSTALL_DIR}" >&2
-    fi
-    
-    if [[ "${verification_failed}" == true ]]; then
-        return 1
-    fi
-    
-    echo "✓ Installation verified successfully"
-    echo "  Script: ${script_path}"
-    echo "  App Bundle: ${app_bundle}"
-    echo "  Plist: ${plist_file}"
-    echo "  Configuration: ${CONFIG_DIR}"
-    
-    return 0
-}
-
-#######################################
-# Generate launchd plist file for scheduled execution
-# Creates a plist file that references the deployed app bundle
-# Arguments:
-#   None
-# Outputs:
-#   Plist file path to stdout
-# Returns:
-#   0 on success, 1 on failure
-#######################################
-generate_plist() {
-    echo "Generating launchd plist..."
-    
-    local app_bundle_exec="${HOME}/Applications/Homebrew Config Automation.app/Contents/MacOS/Homebrew Config Automation"
-    local log_dir="${HOME}/.local/share/homebrew-config/logs"
-    local plist_dir="${HOME}/Library/LaunchAgents"
-    local plist_file="${plist_dir}/com.emkaytec.homebrewconfig.plist"
-    
-    # Ensure log directory exists
-    mkdir -p "${log_dir}" 2>/dev/null || true
-    
-    # Create LaunchAgents directory if it doesn't exist
-    if [[ ! -d "${plist_dir}" ]]; then
-        echo "Creating LaunchAgents directory: ${plist_dir}"
-        if ! mkdir -p "${plist_dir}"; then
-            echo "ERROR: Failed to create LaunchAgents directory" >&2
-            return 1
-        fi
-    fi
-    
-    # Generate plist content
-    cat > "${plist_file}" << EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>com.emkaytec.homebrewconfig</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>${app_bundle_exec}</string>
-    </array>
-    <key>StartCalendarInterval</key>
-    <dict>
-        <key>Hour</key>
-        <integer>2</integer>
-        <key>Minute</key>
-        <integer>0</integer>
-    </dict>
-    <key>StandardOutPath</key>
-    <string>${log_dir}/launchd-stdout.log</string>
-    <key>StandardErrorPath</key>
-    <string>${log_dir}/launchd-stderr.log</string>
-</dict>
-</plist>
-EOF
-    
-    if [[ $? -ne 0 ]]; then
-        echo "ERROR: Failed to generate plist file" >&2
-        return 1
-    fi
-    
-    echo "✓ Plist file generated: ${plist_file}"
-    echo "  Schedule: Daily at 02:00"
-    echo "  Stdout log: ${log_dir}/launchd-stdout.log"
-    echo "  Stderr log: ${log_dir}/launchd-stderr.log"
-    echo
-    echo "To activate scheduled execution, run:"
-    echo "  launchctl load ${plist_file}"
-    echo
-    echo "To deactivate, run:"
-    echo "  launchctl unload ${plist_file}"
-    
-    return 0
-}
-
-#######################################
-# Setup scheduled execution using launchd
-# Generates plist file (does not load it automatically)
-# Arguments:
-#   None
-# Returns:
-#   0 on success, 1 on failure
-#######################################
-setup_schedule() {
-    # Generate plist file
-    if ! generate_plist; then
-        echo "ERROR: Failed to generate plist file" >&2
-        return 1
-    fi
-    
-    return 0
-}
-
-#######################################
-# Main installation function
-# Orchestrates the installation process
-# Arguments:
-#   $@ - Command-line arguments
-# Returns:
-#   0 on success, 1 on failure
-#######################################
 main() {
-    echo "=========================================="
-    echo "Homebrew Configuration Management"
-    echo "Installation Script v${SCRIPT_VERSION}"
-    echo "=========================================="
-    echo
-    
+    print_header "Homebrew Config Automation - Installer"
+
     # Parse arguments
-    if ! parse_install_arguments "$@"; then
-        exit 1
-    fi
-    
-    # Check if running on macOS
-    if [[ "$(uname)" != "Darwin" ]]; then
-        echo "ERROR: This script is designed for macOS only" >&2
-        exit 1
-    fi
-    
-    # Install script
-    if ! install_script; then
-        echo "ERROR: Script installation failed" >&2
-        exit 1
-    fi
-    
-    # Create configuration
-    if ! create_config; then
-        echo "ERROR: Configuration setup failed" >&2
-        exit 1
-    fi
-    
-    # Deploy application bundle
-    if ! deploy_app_bundle; then
-        echo "ERROR: Application bundle deployment failed" >&2
-        exit 1
-    fi
-    
-    # Generate launchd plist
-    echo
-    if ! setup_schedule; then
-        echo "ERROR: Plist generation failed" >&2
-        exit 1
-    fi
-    
+    parse_arguments "$@"
+
+    # Check prerequisites
+    check_prerequisites
+
+    # Install components
+    install_script
+    deploy_app_bundle
+    create_config
+    generate_plist
+
     # Verify installation
-    if ! verify_installation; then
-        echo "ERROR: Installation verification failed" >&2
+    if verify_installation; then
+        print_header "Installation Complete!"
+
+        echo "Installation Summary:"
+        echo "  Script:     ${SCRIPT_DIR}/${SCRIPT_NAME}"
+        echo "  App Bundle: ${APP_DIR}/${APP_NAME}"
+        echo "  Plist:      ${PLIST_DIR}/${PLIST_NAME}"
+        echo "  Config:     ${CONFIG_DIR}/config.sh"
+        echo "  Schedule:   Daily at $(printf "%02d:%02d" ${SCHEDULE_HOUR} ${SCHEDULE_MINUTE})"
+        echo ""
+        echo "Next Steps:"
+        echo ""
+        echo "1. (Optional) Edit configuration:"
+        echo "   \$ nano ${CONFIG_DIR}/config.sh"
+        echo ""
+        echo "2. Test manual execution:"
+        echo "   \$ ${SCRIPT_DIR}/${SCRIPT_NAME}"
+        echo ""
+        echo "3. Load the scheduled job:"
+        echo "   \$ launchctl load ${PLIST_DIR}/${PLIST_NAME}"
+        echo ""
+        echo "4. Check job status:"
+        echo "   \$ launchctl list | grep com.emkaytec.homebrewconfig"
+        echo ""
+        echo "5. View logs:"
+        echo "   \$ tail -f ~/.local/share/homebrew-config/logs/homebrew-config.log"
+        echo ""
+        print_success "Setup complete!"
+    else
+        print_error "Installation verification failed"
         exit 1
     fi
-    
-    # Display installation summary
-    echo
-    echo "=========================================="
-    echo "Installation Complete!"
-    echo "=========================================="
-    echo
-    echo "Installed files:"
-    echo "  Script:        ${INSTALL_DIR}/brew-config.sh"
-    echo "  App Bundle:    ${HOME}/Applications/Homebrew Config Automation.app"
-    echo "  Plist:         ${HOME}/Library/LaunchAgents/com.emkaytec.homebrewconfig.plist"
-    echo "  Configuration: ${CONFIG_DIR}/config.sh"
-    echo "  Example:       ${CONFIG_DIR}/config.sh.example"
-    echo
-    echo "Next steps:"
-    echo "  1. Edit configuration if needed: ${CONFIG_DIR}/config.sh"
-    echo "  2. Test manual execution: ${INSTALL_DIR}/brew-config.sh"
-    echo "  3. Load scheduled execution: launchctl load ${HOME}/Library/LaunchAgents/com.emkaytec.homebrewconfig.plist"
-    echo
-    echo "For help: ${INSTALL_DIR}/brew-config.sh --help"
-    echo
-    
-    return 0
 }
 
 # Run main function

@@ -1,18 +1,18 @@
 #!/bin/bash
 #
-# Homebrew Config Automation - Application Bundle Wrapper
+# Homebrew Config Automation Wrapper
 # This wrapper executable calls the installed brew-config.sh script
 #
 
-# Get the installed script path
+# Path to the installed script
 SCRIPT_PATH="${HOME}/bin/brew-config.sh"
 
-# Check if script exists
+# Check if the script exists
 if [[ ! -f "${SCRIPT_PATH}" ]]; then
-    echo "ERROR: brew-config.sh not found at ${SCRIPT_PATH}" >&2
-    echo "Please run install.sh to install the script first." >&2
+    echo "Error: brew-config.sh not found at ${SCRIPT_PATH}" >&2
+    echo "Please run install.sh first to install the script." >&2
     exit 1
 fi
 
-# Execute the script with all arguments
+# Execute the script with all arguments passed through
 exec "${SCRIPT_PATH}" "$@"
