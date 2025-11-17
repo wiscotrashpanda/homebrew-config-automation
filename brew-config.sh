@@ -64,7 +64,7 @@ log_message() {
 }
 
 rotate_logs() {
-    if [[ ! -f "${LOG_FILE}" ]]; then
+    if [[ -z "${LOG_FILE}" || ! -f "${LOG_FILE}" ]]; then
         return 0
     fi
 
@@ -80,15 +80,42 @@ rotate_logs() {
             log_message "INFO" "Rotated log file to ${rotated_log}"
 
             # Delete old log files if we exceed the maximum
-            local log_count
-            log_count=$(find "${LOG_DIR}" -name "homebrew-config-*.log" -type f | wc -l | tr -d ' ')
+            local -a log_files=()
+            while IFS= read -r -d '' file; do
+                log_files+=("$file")
+            done < <(find "${LOG_DIR}" -name "homebrew-config-*.log" -type f -print0)
 
-            if [[ ${log_count} -gt ${MAX_LOG_FILES} ]]; then
-                local files_to_delete=$((log_count - MAX_LOG_FILES))
-                find "${LOG_DIR}" -name "homebrew-config-*.log" -type f -print0 | \
-                    xargs -0 ls -t | \
-                    tail -n "${files_to_delete}" | \
-                    xargs rm -f 2>/dev/null || log_message "WARN" "Failed to delete old log files"
+            local log_count=${#log_files[@]}
+            if (( log_count > MAX_LOG_FILES )); then
+                local -a sortable_entries=()
+                local file
+                for file in "${log_files[@]}"; do
+                    local mtime
+                    mtime=$(stat -f "%m" "${file}" 2>/dev/null || echo 0)
+                    sortable_entries+=("${mtime}\t${file}")
+                done
+
+                local sorted_output=""
+                if [[ ${#sortable_entries[@]} -gt 0 ]]; then
+                    sorted_output="$(printf '%s\n' "${sortable_entries[@]}" | LC_ALL=C sort -rn)"
+                fi
+
+                local -a sorted_entries=()
+                if [[ -n "${sorted_output}" ]]; then
+                    IFS=$'\n' read -r -a sorted_entries <<< "${sorted_output}"
+                fi
+
+                local index=0
+                local entry
+                for entry in "${sorted_entries[@]}"; do
+                    if (( index >= MAX_LOG_FILES )); then
+                        local file_to_delete="${entry#*$'\t'}"
+                        if [[ -n "${file_to_delete}" ]]; then
+                            rm -f "${file_to_delete}" 2>/dev/null || log_message "WARN" "Failed to delete old log file: ${file_to_delete}"
+                        fi
+                    fi
+                    ((index++))
+                done
             fi
         else
             log_message "WARN" "Failed to rotate log file"
