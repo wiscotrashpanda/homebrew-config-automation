@@ -479,7 +479,7 @@ homebrew-config-automation/
 │       └── Resources/            # App icon
 ├── AppIcon.icns                  # Custom icon file
 ├── .gitignore                    # Git ignore rules
-├── CLAUDE.md                     # AI assistant instructions
+├── AGENTS.md                     # Contributor guidelines for automation agents
 └── README.md                     # This file
 ```
 
@@ -520,7 +520,7 @@ Maintained by Emkaytec
 
 For issues, questions, or contributions:
 - GitHub Issues: https://github.com/yourusername/homebrew-config-automation/issues
-- Documentation: See this README and CLAUDE.md for technical details
+- Documentation: See this README and AGENTS.md for technical details
 
 ## Changelog
 
