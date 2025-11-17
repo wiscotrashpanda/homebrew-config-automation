@@ -179,6 +179,11 @@ validate_configuration() {
     fi
 
     # Validate BREWFILE_DESTINATION is writable (or can be created)
+    if [[ -e "${BREWFILE_DESTINATION}" && ! -d "${BREWFILE_DESTINATION}" ]]; then
+        log_message "ERROR" "Brewfile destination exists and is not a directory: ${BREWFILE_DESTINATION}"
+        exit 2
+    fi
+
     local dest_parent
     dest_parent="$(dirname "${BREWFILE_DESTINATION}")"
 
@@ -187,14 +192,18 @@ validate_configuration() {
             log_message "ERROR" "Brewfile destination is not writable: ${BREWFILE_DESTINATION}"
             exit 3
         fi
-    elif [[ -d "${dest_parent}" ]]; then
+    else
+        if [[ ! -d "${dest_parent}" ]]; then
+            if ! mkdir -p "${dest_parent}" 2>/dev/null; then
+                log_message "ERROR" "Failed to create Brewfile destination parent directory: ${dest_parent}"
+                exit 3
+            fi
+        fi
+
         if [[ ! -w "${dest_parent}" ]]; then
             log_message "ERROR" "Cannot create Brewfile destination (parent not writable): ${dest_parent}"
             exit 3
         fi
-    else
-        log_message "ERROR" "Brewfile destination parent directory does not exist: ${dest_parent}"
-        exit 2
     fi
 }
 
