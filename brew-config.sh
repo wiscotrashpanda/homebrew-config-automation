@@ -46,15 +46,13 @@ log_message() {
     local message="$*"
     local timestamp
     timestamp="$(date -u +"%Y-%m-%dT%H:%M:%S%z")"
-
-    # Ensure log directory exists
-    if [[ -n "${LOG_DIR}" && ! -d "${LOG_DIR}" ]]; then
-        mkdir -p "${LOG_DIR}" 2>/dev/null || true
-    fi
+    local entry="[${timestamp}] [${level}] ${message}"
 
     # Write to log file if it's set
     if [[ -n "${LOG_FILE}" ]]; then
-        echo "[${timestamp}] [${level}] ${message}" >> "${LOG_FILE}" 2>/dev/null || true
+        if ! printf '%s\n' "${entry}" >> "${LOG_FILE}" 2>/dev/null; then
+            printf '[WARN] Failed to write log entry to %s\n' "${LOG_FILE}" >&2
+        fi
     fi
 
     # Also output to console for INFO and WARN
