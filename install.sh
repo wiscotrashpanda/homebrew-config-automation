@@ -7,12 +7,9 @@
 set -e  # Exit on error
 set -u  # Exit on undefined variable
 
-# Color codes for output
-readonly RED='\033[0;31m'
-readonly GREEN='\033[0;32m'
-readonly YELLOW='\033[1;33m'
-readonly BLUE='\033[0;34m'
-readonly NC='\033[0m' # No Color
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/common.sh
+source "${REPO_ROOT}/lib/common.sh"
 
 # Default installation locations
 DEFAULT_SCRIPT_DIR="${HOME}/bin"
@@ -34,35 +31,6 @@ readonly APP_NAME="Homebrew Config Automation.app"
 readonly PLIST_NAME="com.emkaytec.homebrewconfig.plist"
 readonly CONFIG_EXAMPLE="config.sh.example"
 
-#############################################
-# Output Functions
-#############################################
-
-print_info() {
-    echo -e "${BLUE}[INFO]${NC} $*"
-}
-
-print_success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $*"
-}
-
-print_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $*"
-}
-
-print_error() {
-    echo -e "${RED}[ERROR]${NC} $*" >&2
-}
-
-print_header() {
-    echo ""
-    echo "========================================="
-    echo "$*"
-    echo "========================================="
-    echo ""
-}
-
-#############################################
 # Validation Functions
 #############################################
 
@@ -324,39 +292,28 @@ parse_arguments() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --script-dir)
-                if [[ -z "${2:-}" ]]; then
-                    print_error "--script-dir requires a value"
-                    exit 2
-                fi
-                SCRIPT_DIR="$2"
+                require_argument "--script-dir" "${2:-}"
+                SCRIPT_DIR="$(expand_path "$2")"
                 shift 2
                 ;;
             --app-dir)
-                if [[ -z "${2:-}" ]]; then
-                    print_error "--app-dir requires a value"
-                    exit 2
-                fi
-                APP_DIR="$2"
+                require_argument "--app-dir" "${2:-}"
+                APP_DIR="$(expand_path "$2")"
                 shift 2
                 ;;
             --config-dir)
-                if [[ -z "${2:-}" ]]; then
-                    print_error "--config-dir requires a value"
-                    exit 2
-                fi
-                CONFIG_DIR="$2"
+                require_argument "--config-dir" "${2:-}"
+                CONFIG_DIR="$(expand_path "$2")"
                 shift 2
                 ;;
             --plist-dir)
-                if [[ -z "${2:-}" ]]; then
-                    print_error "--plist-dir requires a value"
-                    exit 2
-                fi
-                PLIST_DIR="$2"
+                require_argument "--plist-dir" "${2:-}"
+                PLIST_DIR="$(expand_path "$2")"
                 shift 2
                 ;;
             --schedule-hour)
-                if [[ -z "${2:-}" ]] || ! [[ "$2" =~ ^[0-9]+$ ]] || [[ "$2" -lt 0 ]] || [[ "$2" -gt 23 ]]; then
+                require_argument "--schedule-hour" "${2:-}"
+                if ! [[ "$2" =~ ^[0-9]+$ ]] || [[ "$2" -lt 0 ]] || [[ "$2" -gt 23 ]]; then
                     print_error "--schedule-hour must be between 0 and 23"
                     exit 2
                 fi
@@ -364,7 +321,8 @@ parse_arguments() {
                 shift 2
                 ;;
             --schedule-minute)
-                if [[ -z "${2:-}" ]] || ! [[ "$2" =~ ^[0-9]+$ ]] || [[ "$2" -lt 0 ]] || [[ "$2" -gt 59 ]]; then
+                require_argument "--schedule-minute" "${2:-}"
+                if ! [[ "$2" =~ ^[0-9]+$ ]] || [[ "$2" -lt 0 ]] || [[ "$2" -gt 59 ]]; then
                     print_error "--schedule-minute must be between 0 and 59"
                     exit 2
                 fi
@@ -382,12 +340,6 @@ parse_arguments() {
                 ;;
         esac
     done
-
-    # Expand tilde in paths
-    SCRIPT_DIR="${SCRIPT_DIR/#\~/$HOME}"
-    APP_DIR="${APP_DIR/#\~/$HOME}"
-    CONFIG_DIR="${CONFIG_DIR/#\~/$HOME}"
-    PLIST_DIR="${PLIST_DIR/#\~/$HOME}"
 }
 
 #############################################
