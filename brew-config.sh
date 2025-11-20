@@ -237,7 +237,20 @@ validate_configuration() {
 #############################################
 
 check_homebrew() {
-    if command -v brew &> /dev/null; then
+    # Check common Homebrew installation locations
+    # Apple Silicon Macs use /opt/homebrew, Intel Macs use /usr/local
+    if [[ -x "/opt/homebrew/bin/brew" ]]; then
+        # Add Homebrew to PATH for this session (Apple Silicon)
+        eval "$(/opt/homebrew/bin/brew shellenv)"
+        log_message "INFO" "Homebrew is already installed at /opt/homebrew"
+        return 0
+    elif [[ -x "/usr/local/bin/brew" ]]; then
+        # Add Homebrew to PATH for this session (Intel)
+        eval "$(/usr/local/bin/brew shellenv)"
+        log_message "INFO" "Homebrew is already installed at /usr/local"
+        return 0
+    elif command -v brew &> /dev/null; then
+        # Fallback: check if brew is in PATH
         log_message "INFO" "Homebrew is already installed"
         return 0
     else
