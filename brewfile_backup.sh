@@ -176,6 +176,94 @@ EOF
 }
 
 ################################################################################
+# CONFIGURATION MANAGEMENT
+################################################################################
+
+# save_config: Save current state to configuration file
+#
+# Atomically writes the current Gist ID, hash, and timestamp to the config file.
+# Uses a temporary file and atomic move to prevent corruption.
+#
+# The config file has the following JSON structure:
+# {
+#   "gist_id": "abc123...",
+#   "last_hash": "sha256hash...",
+#   "last_backup": "2025-11-22T10:00:00Z",
+#   "gist_url": "https://gist.github.com/user/abc123"
+# }
+#
+# Global variables used:
+#   GIST_ID - The GitHub Gist ID
+#   BREWFILE_HASH - SHA-256 hash of the Brewfile
+#   GIST_URL - The URL to the Gist (optional, preserved from previous config)
+#
+# Exits with code 4 if config save fails
+#
+save_config() {
+    log_info "Saving configuration..."
+
+    local timestamp
+    timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+    # Create temporary file for atomic write
+    local temp_config
+    temp_config=$(mktemp)
+
+    # If GIST_URL is not set, try to preserve it from existing config
+    if [[ -z "$GIST_URL" ]]; then
+        GIST_URL=$(jq -r '.gist_url // ""' "$CONFIG_FILE" 2>/dev/null || echo "")
+    fi
+
+    # Build JSON config using jq
+    if ! jq -n \
+        --arg gist_id "$GIST_ID" \
+        --arg hash "$BREWFILE_HASH" \
+        --arg timestamp "$timestamp" \
+        --arg url "$GIST_URL" \
+        '{
+            gist_id: $gist_id,
+            last_hash: $hash,
+            last_backup: $timestamp,
+            gist_url: $url
+        }' > "$temp_config"; then
+        log_error "Failed to create config JSON"
+        rm -f "$temp_config"
+        exit 4
+    fi
+
+    # Atomic move (replace existing config)
+    if ! mv "$temp_config" "$CONFIG_FILE"; then
+        log_error "Failed to save config file"
+        rm -f "$temp_config"
+        exit 4
+    fi
+
+    # Ensure proper permissions (owner read/write only)
+    chmod 600 "$CONFIG_FILE"
+
+    log_info "Configuration saved successfully"
+    log_info "  Gist ID: ${GIST_ID:0:8}..."
+    log_info "  Hash: ${BREWFILE_HASH:0:8}..."
+    log_info "  Timestamp: $timestamp"
+}
+
+# get_config_value: Read a value from the config file
+#
+# Arguments:
+#   $1 - JSON key to read (e.g., "gist_id", "last_hash")
+#
+# Returns:
+#   The value as a string, or empty string if not found
+#
+# Example:
+#   previous_hash=$(get_config_value "last_hash")
+#
+get_config_value() {
+    local key="$1"
+    jq -r ".$key // \"\"" "$CONFIG_FILE" 2>/dev/null || echo ""
+}
+
+################################################################################
 # DEPENDENCY CHECKING
 ################################################################################
 
