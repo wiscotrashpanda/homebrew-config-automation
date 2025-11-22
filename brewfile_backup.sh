@@ -176,6 +176,156 @@ EOF
 }
 
 ################################################################################
+# GIST MANAGEMENT
+################################################################################
+
+# create_gist: Create a new private Gist with the Brewfile
+#
+# Uses the GitHub API via 'gh api' to create a new private Gist containing
+# the Brewfile. The Gist ID and URL are stored in global variables.
+#
+# Global variables set:
+#   GIST_ID - The ID of the created Gist
+#   GIST_URL - The HTML URL to the created Gist
+#
+# Global variables used:
+#   BREWFILE_CONTENT - The content to upload
+#
+# Exits with code 3 if Gist creation fails
+#
+create_gist() {
+    log_info "Creating new private Gist..."
+
+    # Build JSON payload for Gist creation
+    # Use jq to properly escape the Brewfile content
+    local payload
+    if ! payload=$(jq -n \
+        --arg desc "Homebrew Brewfile Backup" \
+        --arg content "$BREWFILE_CONTENT" \
+        '{
+            description: $desc,
+            public: false,
+            files: {
+                "Brewfile": {
+                    content: $content
+                }
+            }
+        }'); then
+        log_error "Failed to create Gist payload JSON"
+        exit 3
+    fi
+
+    # Call GitHub API to create Gist
+    local response
+    if ! response=$(echo "$payload" | gh api /gists -X POST --input - 2>&1); then
+        log_error "Failed to create Gist"
+        log_error "$response"
+        exit 3
+    fi
+
+    # Extract Gist ID and URL from response
+    GIST_ID=$(echo "$response" | jq -r '.id')
+    GIST_URL=$(echo "$response" | jq -r '.html_url')
+
+    if [[ -z "$GIST_ID" ]] || [[ "$GIST_ID" == "null" ]]; then
+        log_error "Failed to extract Gist ID from API response"
+        exit 3
+    fi
+
+    log_info "✓ Gist created successfully"
+    log_info "  Gist ID: $GIST_ID"
+    log_info "  URL: $GIST_URL"
+}
+
+# update_gist: Update an existing Gist with new Brewfile content
+#
+# Uses the GitHub API via 'gh api' to update an existing Gist. If the update
+# fails (e.g., Gist was deleted), falls back to creating a new Gist.
+#
+# Arguments:
+#   $1 - The Gist ID to update
+#
+# Global variables used:
+#   BREWFILE_CONTENT - The new content
+#
+# Global variables set:
+#   GIST_ID - Updated if a new Gist is created (fallback)
+#   GIST_URL - Updated if a new Gist is created (fallback)
+#
+update_gist() {
+    local gist_id="$1"
+
+    log_info "Updating existing Gist (${gist_id:0:8}...)..."
+
+    # Build JSON payload for Gist update
+    local payload
+    if ! payload=$(jq -n \
+        --arg content "$BREWFILE_CONTENT" \
+        '{
+            files: {
+                "Brewfile": {
+                    content: $content
+                }
+            }
+        }'); then
+        log_error "Failed to create update payload JSON"
+        exit 3
+    fi
+
+    # Call GitHub API to update Gist
+    if echo "$payload" | gh api "/gists/$gist_id" -X PATCH --input - >/dev/null 2>&1; then
+        log_info "✓ Gist updated successfully"
+        # Set global variables for consistency
+        GIST_ID="$gist_id"
+    else
+        log_warn "Failed to update Gist (may have been deleted)"
+        log_warn "Creating new Gist instead..."
+        create_gist
+    fi
+}
+
+# manage_gist: Main Gist management function
+#
+# Determines whether to create a new Gist or update an existing one based
+# on the configuration file. If a Gist ID exists in config, attempts to
+# update it. If the Gist doesn't exist or no ID is in config, creates new.
+#
+# Global variables used:
+#   CONFIG_FILE - Path to config file
+#   BREWFILE_CONTENT - Content to upload
+#
+# Global variables set:
+#   GIST_ID - The Gist ID (new or existing)
+#   GIST_URL - The Gist URL (new or existing)
+#
+# Exits with code 3 if Gist operations fail
+#
+manage_gist() {
+    log_info "Managing Gist backup..."
+
+    # Check if we have an existing Gist ID in config
+    local existing_gist_id
+    existing_gist_id=$(get_config_value "gist_id")
+
+    if [[ -n "$existing_gist_id" ]] && [[ "$existing_gist_id" != "null" ]]; then
+        log_info "Found existing Gist ID in config"
+
+        # Verify Gist still exists by trying to fetch it
+        if gh api "/gists/$existing_gist_id" >/dev/null 2>&1; then
+            log_info "✓ Existing Gist is accessible"
+            update_gist "$existing_gist_id"
+        else
+            log_warn "Existing Gist not found (may have been deleted)"
+            log_warn "Creating new Gist..."
+            create_gist
+        fi
+    else
+        log_info "No existing Gist found in config"
+        create_gist
+    fi
+}
+
+################################################################################
 # CHANGE DETECTION
 ################################################################################
 
@@ -534,16 +684,33 @@ check_dependencies
 # Generate Brewfile
 generate_brewfile
 
-# Check if Brewfile has changed
-if ! check_changes; then
+# Check if Brewfile has changed (unless in dry-run mode)
+if [[ "$DRY_RUN" != "true" ]] && ! check_changes; then
     log_info "========================================="
     log_info "Backup skipped (no changes detected)"
     log_info "========================================="
     exit 0
 fi
 
-# The main implementation will be added in subsequent tasks
-log_info "Changes detected, ready to upload to Gist"
-log_info "Script execution completed successfully"
+# Handle dry-run mode
+if [[ "$DRY_RUN" == "true" ]]; then
+    log_info "========================================="
+    log_info "DRY RUN MODE - Skipping upload"
+    log_info "========================================="
+    log_info "Brewfile generated successfully at: $BREWFILE_PATH"
+    log_info "Hash: $BREWFILE_HASH"
+    exit 0
+fi
+
+# Upload to Gist (create or update)
+manage_gist
+
+# Save configuration with new hash and Gist ID
+save_config
+
+log_info "========================================="
+log_info "Backup completed successfully!"
+log_info "========================================="
+log_info "Gist URL: $GIST_URL"
 
 exit 0
