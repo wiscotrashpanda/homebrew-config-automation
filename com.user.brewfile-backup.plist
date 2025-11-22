@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<!--
+    Brewfile Backup - launchd Configuration
+
+    This launchd agent runs the Brewfile backup script daily at 2:00 AM.
+
+    INSTALLATION:
+
+    1. Edit this file and replace ABSOLUTE_PATH_TO_SCRIPT with the full path
+       to your brewfile_backup.sh file
+
+    2. Copy to LaunchAgents directory:
+       cp com.user.brewfile-backup.plist ~/Library/LaunchAgents/
+
+    3. Load the agent:
+       launchctl load ~/Library/LaunchAgents/com.user.brewfile-backup.plist
+
+    4. Verify it's loaded:
+       launchctl list | grep brewfile
+
+    MANUAL TESTING:
+
+    To test the launchd configuration without waiting for the scheduled time:
+
+       launchctl start com.user.brewfile-backup
+
+    Check logs at:
+       tail -f ~/.config/brewfile-backup/backup.log
+       cat /tmp/brewfile-backup.stdout
+       cat /tmp/brewfile-backup.stderr
+
+    UNINSTALL:
+
+       launchctl unload ~/Library/LaunchAgents/com.user.brewfile-backup.plist
+       rm ~/Library/LaunchAgents/com.user.brewfile-backup.plist
+
+    SCHEDULE:
+
+    By default, runs daily at 2:00 AM. To change the schedule, modify the
+    StartCalendarInterval section below.
+
+    Examples:
+    - Every day at 3:30 AM:
+      <key>Hour</key><integer>3</integer>
+      <key>Minute</key><integer>30</integer>
+
+    - Multiple times per day (e.g., 2 AM and 2 PM):
+      <key>StartCalendarInterval</key>
+      <array>
+        <dict><key>Hour</key><integer>2</integer><key>Minute</key><integer>0</integer></dict>
+        <dict><key>Hour</key><integer>14</integer><key>Minute</key><integer>0</integer></dict>
+      </array>
+
+    - Every Monday at 9 AM:
+      <key>Weekday</key><integer>1</integer>
+      <key>Hour</key><integer>9</integer>
+      <key>Minute</key><integer>0</integer>
+-->
+<dict>
+    <!-- Unique identifier for this agent -->
+    <key>Label</key>
+    <string>com.user.brewfile-backup</string>
+
+    <!-- Program to run -->
+    <key>ProgramArguments</key>
+    <array>
+        <!-- Use bash to run the script -->
+        <string>/bin/bash</string>
+        <!--
+            IMPORTANT: Replace this with the absolute path to your script!
+            Example: /Users/yourname/homebrew-config-automation/brewfile_backup.sh
+        -->
+        <string>ABSOLUTE_PATH_TO_SCRIPT</string>
+    </array>
+
+    <!-- Schedule: Daily at 2:00 AM -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>2</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <!-- Standard output (for debugging) -->
+    <key>StandardOutPath</key>
+    <string>/tmp/brewfile-backup.stdout</string>
+
+    <!-- Standard error (for debugging) -->
+    <key>StandardErrorPath</key>
+    <string>/tmp/brewfile-backup.stderr</string>
+
+    <!-- Environment variables -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <!--
+            PATH must include locations of:
+            - brew (usually /opt/homebrew/bin on Apple Silicon, /usr/local/bin on Intel)
+            - gh (installed via Homebrew)
+            - jq (installed via Homebrew)
+
+            Adjust this if your Homebrew installation is in a different location
+        -->
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+
+    <!--
+        Run at load (optional - set to true to run immediately when loaded)
+        Useful for testing, but typically should be false for production
+    -->
+    <key>RunAtLoad</key>
+    <false/>
+
+    <!--
+        Working directory (optional)
+        If not specified, defaults to the user's home directory
+    -->
+    <!-- <key>WorkingDirectory</key>
+    <string>/Users/yourname</string> -->
+
+</dict>
+</plist>
