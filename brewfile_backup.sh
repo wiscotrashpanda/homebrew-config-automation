@@ -176,6 +176,69 @@ EOF
 }
 
 ################################################################################
+# BREWFILE GENERATION
+################################################################################
+
+# generate_brewfile: Generate Brewfile and calculate hash
+#
+# Uses 'brew bundle dump' to create a Brewfile containing all installed
+# Homebrew packages, casks, taps, and Mac App Store apps. The function
+# also calculates a SHA-256 hash of the Brewfile for change detection.
+#
+# The generated Brewfile is stored in the config directory and its contents
+# are read into the BREWFILE_CONTENT global variable.
+#
+# Global variables set:
+#   BREWFILE_HASH - SHA-256 hash of the Brewfile contents
+#   BREWFILE_CONTENT - The full text content of the Brewfile
+#
+# Exits with code 2 if Brewfile generation fails
+#
+generate_brewfile() {
+    log_info "Generating Brewfile from current Homebrew installation..."
+
+    # Generate Brewfile (--force overwrites existing file)
+    # Redirect stderr to capture any warnings or errors
+    if ! brew bundle dump --force --file="$BREWFILE_PATH" 2>&1 | grep -v "^$" | while read -r line; do
+        log_info "  brew: $line"
+    done; then
+        log_error "Failed to generate Brewfile"
+        exit 2
+    fi
+
+    # Verify Brewfile was created
+    if [[ ! -f "$BREWFILE_PATH" ]]; then
+        log_error "Brewfile was not created at $BREWFILE_PATH"
+        exit 2
+    fi
+
+    # Count lines in Brewfile for informational logging
+    local line_count
+    line_count=$(wc -l < "$BREWFILE_PATH" | tr -d ' ')
+
+    log_info "✓ Brewfile generated successfully ($line_count lines)"
+
+    # Calculate SHA-256 hash of Brewfile contents
+    # Using shasum which is standard on macOS
+    BREWFILE_HASH=$(shasum -a 256 "$BREWFILE_PATH" | awk '{print $1}')
+
+    if [[ -z "$BREWFILE_HASH" ]]; then
+        log_error "Failed to calculate Brewfile hash"
+        exit 2
+    fi
+
+    log_info "✓ Brewfile hash calculated: ${BREWFILE_HASH:0:16}..."
+
+    # Read Brewfile contents into global variable
+    # This will be used for uploading to Gist
+    BREWFILE_CONTENT=$(cat "$BREWFILE_PATH")
+
+    if [[ -z "$BREWFILE_CONTENT" ]]; then
+        log_warn "Brewfile is empty (no packages installed?)"
+    fi
+}
+
+################################################################################
 # CONFIGURATION MANAGEMENT
 ################################################################################
 
@@ -402,8 +465,10 @@ log_info "========================================="
 # Check dependencies
 check_dependencies
 
+# Generate Brewfile
+generate_brewfile
+
 # The main implementation will be added in subsequent tasks
-log_info "Script skeleton initialized successfully"
-log_info "Ready for core functionality implementation"
+log_info "Script execution completed successfully"
 
 exit 0
