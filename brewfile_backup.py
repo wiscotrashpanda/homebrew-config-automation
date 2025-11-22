@@ -222,6 +222,228 @@ class GitHubAuth:
 
 
 # =============================================================================
+# Brewfile Generator Module
+# =============================================================================
+
+class BrewfileGenerator:
+    """
+    Handles generation of Brewfile from the current Homebrew installation.
+
+    This class wraps the `brew bundle dump` command, which exports all
+    installed Homebrew packages, casks, taps, and Mac App Store apps to
+    a Brewfile format.
+
+    The Brewfile can be used to recreate the same Homebrew environment
+    on another machine or after a fresh install.
+    """
+
+    def __init__(self, output_dir: Path):
+        """
+        Initialize the Brewfile generator.
+
+        Args:
+            output_dir: Directory where temporary Brewfile will be created
+        """
+        self.output_dir = output_dir
+        self.brewfile_path = output_dir / "Brewfile.tmp"
+
+    def generate(self) -> Tuple[str, str]:
+        """
+        Generate Brewfile from current Homebrew installation.
+
+        This method:
+        1. Validates that Homebrew is installed
+        2. Executes `brew bundle dump --force`
+        3. Reads the generated Brewfile
+        4. Calculates SHA-256 hash of the content
+        5. Cleans up the temporary file
+
+        Returns:
+            Tuple[str, str]: (brewfile_content, sha256_hash)
+
+        Raises:
+            BrewfileGenerationError: If Homebrew is not available or generation fails
+
+        Example:
+            >>> generator = BrewfileGenerator(Path('/tmp'))
+            >>> content, hash = generator.generate()
+            >>> print(f"Generated {len(content)} bytes, hash: {hash[:8]}...")
+            Generated 1234 bytes, hash: a1b2c3d4...
+        """
+        logging.debug("Starting Brewfile generation")
+
+        # Step 1: Check if Homebrew is installed
+        self._check_brew_installed()
+
+        # Step 2: Generate the Brewfile
+        self._run_brew_bundle_dump()
+
+        # Step 3: Read the Brewfile content
+        content = self._read_brewfile()
+
+        # Step 4: Calculate hash
+        content_hash = self._calculate_hash(content)
+
+        # Step 5: Clean up temporary file
+        self._cleanup()
+
+        logging.info(f"Generated Brewfile: {len(content)} bytes, {len(content.splitlines())} lines")
+        logging.debug(f"Brewfile hash: {content_hash}")
+
+        return content, content_hash
+
+    def _check_brew_installed(self) -> None:
+        """
+        Check if Homebrew is installed and accessible.
+
+        Raises:
+            BrewfileGenerationError: If Homebrew is not found
+        """
+        brew_path = shutil.which('brew')
+
+        if not brew_path:
+            error_msg = (
+                "Homebrew not found. Please install Homebrew first:\n"
+                "/bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"\n\n"
+                "Common Homebrew locations:\n"
+                "  - macOS Intel: /usr/local/bin/brew\n"
+                "  - macOS Apple Silicon: /opt/homebrew/bin/brew\n\n"
+                "Make sure Homebrew is in your PATH."
+            )
+            logging.error("Homebrew not found in PATH")
+            raise BrewfileGenerationError(error_msg)
+
+        logging.debug(f"Found Homebrew at: {brew_path}")
+
+        # Verify brew is executable
+        try:
+            result = subprocess.run(
+                ['brew', '--version'],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+
+            if result.returncode == 0:
+                version = result.stdout.strip().split('\n')[0]
+                logging.debug(f"Homebrew version: {version}")
+            else:
+                raise BrewfileGenerationError(f"Homebrew check failed: {result.stderr}")
+
+        except subprocess.TimeoutExpired:
+            raise BrewfileGenerationError("Homebrew version check timed out")
+        except Exception as e:
+            raise BrewfileGenerationError(f"Error verifying Homebrew: {e}")
+
+    def _run_brew_bundle_dump(self) -> None:
+        """
+        Execute `brew bundle dump` to generate the Brewfile.
+
+        The --force flag overwrites any existing Brewfile at the output location.
+        The --file flag specifies where to write the Brewfile.
+
+        Raises:
+            BrewfileGenerationError: If the command fails
+        """
+        # Ensure output directory exists
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+
+        logging.debug(f"Running brew bundle dump to: {self.brewfile_path}")
+
+        try:
+            # Run brew bundle dump
+            # --force: Overwrite existing Brewfile
+            # --file: Specify output location
+            result = subprocess.run(
+                ['brew', 'bundle', 'dump', '--force', f'--file={self.brewfile_path}'],
+                capture_output=True,
+                text=True,
+                timeout=60  # Generous timeout for large installations
+            )
+
+            if result.returncode != 0:
+                error_msg = f"brew bundle dump failed:\n{result.stderr}"
+                logging.error(error_msg)
+                raise BrewfileGenerationError(error_msg)
+
+            logging.debug("brew bundle dump completed successfully")
+
+            # Log any warnings or messages from brew
+            if result.stdout.strip():
+                logging.debug(f"brew output: {result.stdout.strip()}")
+            if result.stderr.strip():
+                logging.warning(f"brew stderr: {result.stderr.strip()}")
+
+        except subprocess.TimeoutExpired:
+            error_msg = "brew bundle dump timed out after 60 seconds"
+            logging.error(error_msg)
+            raise BrewfileGenerationError(error_msg)
+        except Exception as e:
+            error_msg = f"Unexpected error running brew bundle dump: {e}"
+            logging.error(error_msg)
+            raise BrewfileGenerationError(error_msg)
+
+    def _read_brewfile(self) -> str:
+        """
+        Read the generated Brewfile.
+
+        Returns:
+            str: Contents of the Brewfile
+
+        Raises:
+            BrewfileGenerationError: If the file doesn't exist or can't be read
+        """
+        if not self.brewfile_path.exists():
+            error_msg = f"Brewfile was not created at: {self.brewfile_path}"
+            logging.error(error_msg)
+            raise BrewfileGenerationError(error_msg)
+
+        try:
+            content = self.brewfile_path.read_text(encoding='utf-8')
+
+            # Warn if Brewfile is empty
+            if not content.strip():
+                logging.warning("Generated Brewfile is empty (no packages installed?)")
+
+            return content
+
+        except Exception as e:
+            error_msg = f"Error reading Brewfile: {e}"
+            logging.error(error_msg)
+            raise BrewfileGenerationError(error_msg)
+
+    @staticmethod
+    def _calculate_hash(content: str) -> str:
+        """
+        Calculate SHA-256 hash of the Brewfile content.
+
+        This hash is used for change detection - we only upload to Gist
+        if the hash differs from the previous backup.
+
+        Args:
+            content: Brewfile content to hash
+
+        Returns:
+            str: Hexadecimal SHA-256 hash
+        """
+        return hashlib.sha256(content.encode('utf-8')).hexdigest()
+
+    def _cleanup(self) -> None:
+        """
+        Clean up temporary Brewfile.
+
+        Removes the temporary Brewfile created during generation.
+        Errors during cleanup are logged but don't raise exceptions.
+        """
+        try:
+            if self.brewfile_path.exists():
+                self.brewfile_path.unlink()
+                logging.debug(f"Cleaned up temporary Brewfile: {self.brewfile_path}")
+        except Exception as e:
+            logging.warning(f"Failed to clean up temporary Brewfile: {e}")
+
+
+# =============================================================================
 # Main Entry Point (to be implemented in subsequent tasks)
 # =============================================================================
 
