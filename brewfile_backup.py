@@ -444,6 +444,276 @@ class BrewfileGenerator:
 
 
 # =============================================================================
+# Gist Manager Module
+# =============================================================================
+
+class GistManager:
+    """
+    Manages GitHub Gist operations for Brewfile storage.
+
+    This class handles creating and updating private GitHub Gists that
+    store the Brewfile backup. It uses the GitHub REST API v3.
+
+    GitHub Gists provide:
+    - Version history (every update is a new revision)
+    - Web-based viewing and downloading
+    - Private visibility (not listed publicly)
+    - Simple API for CRUD operations
+    """
+
+    # GitHub API base URL
+    API_BASE = "https://api.github.com"
+
+    # Default Gist settings
+    GIST_DESCRIPTION = "Homebrew Brewfile Backup"
+    GIST_FILENAME = "Brewfile"
+
+    def __init__(self, token: str):
+        """
+        Initialize the Gist manager.
+
+        Args:
+            token: GitHub API token with 'gist' scope
+        """
+        self.token = token
+        self.session = requests.Session()
+
+        # Set up default headers for all requests
+        self.session.headers.update({
+            'Authorization': f'token {token}',
+            'Accept': 'application/vnd.github.v3+json',
+            'User-Agent': 'Brewfile-Backup/1.0'
+        })
+
+    def create_gist(self, content: str) -> Tuple[str, str]:
+        """
+        Create a new private Gist with the Brewfile content.
+
+        Args:
+            content: Brewfile content to upload
+
+        Returns:
+            Tuple[str, str]: (gist_id, gist_url)
+
+        Raises:
+            GistAPIError: If the API request fails
+
+        Example:
+            >>> manager = GistManager(token)
+            >>> gist_id, url = manager.create_gist(brewfile_content)
+            >>> print(f"Created Gist: {url}")
+            Created Gist: https://gist.github.com/username/abc123...
+        """
+        logging.info("Creating new Gist")
+
+        url = f"{self.API_BASE}/gists"
+
+        payload = {
+            "description": self.GIST_DESCRIPTION,
+            "public": False,  # Create as private Gist
+            "files": {
+                self.GIST_FILENAME: {
+                    "content": content
+                }
+            }
+        }
+
+        try:
+            response = self.session.post(url, json=payload, timeout=30)
+
+            # Check for successful creation (HTTP 201 Created)
+            if response.status_code == 201:
+                data = response.json()
+                gist_id = data['id']
+                gist_url = data['html_url']
+
+                logging.info(f"Created Gist: {gist_id}")
+                logging.debug(f"Gist URL: {gist_url}")
+
+                return gist_id, gist_url
+
+            else:
+                self._handle_api_error(response, "create Gist")
+
+        except requests.exceptions.Timeout:
+            error_msg = "Request to create Gist timed out after 30 seconds"
+            logging.error(error_msg)
+            raise GistAPIError(error_msg)
+        except requests.exceptions.RequestException as e:
+            error_msg = f"Network error while creating Gist: {e}"
+            logging.error(error_msg)
+            raise GistAPIError(error_msg)
+
+    def update_gist(self, gist_id: str, content: str) -> None:
+        """
+        Update an existing Gist with new Brewfile content.
+
+        This creates a new revision in the Gist's history. All previous
+        versions remain accessible through the Gist's revision history.
+
+        Args:
+            gist_id: ID of the Gist to update
+            content: New Brewfile content
+
+        Raises:
+            GistAPIError: If the API request fails
+
+        Example:
+            >>> manager = GistManager(token)
+            >>> manager.update_gist('abc123...', new_content)
+        """
+        logging.info(f"Updating Gist: {gist_id}")
+
+        url = f"{self.API_BASE}/gists/{gist_id}"
+
+        payload = {
+            "files": {
+                self.GIST_FILENAME: {
+                    "content": content
+                }
+            }
+        }
+
+        try:
+            response = self.session.patch(url, json=payload, timeout=30)
+
+            # Check for successful update (HTTP 200 OK)
+            if response.status_code == 200:
+                logging.info("Gist updated successfully")
+                logging.debug(f"Response status: {response.status_code}")
+            else:
+                self._handle_api_error(response, "update Gist")
+
+        except requests.exceptions.Timeout:
+            error_msg = f"Request to update Gist {gist_id} timed out after 30 seconds"
+            logging.error(error_msg)
+            raise GistAPIError(error_msg)
+        except requests.exceptions.RequestException as e:
+            error_msg = f"Network error while updating Gist: {e}"
+            logging.error(error_msg)
+            raise GistAPIError(error_msg)
+
+    def gist_exists(self, gist_id: str) -> bool:
+        """
+        Check if a Gist exists and is accessible.
+
+        This is useful to verify that a stored Gist ID is still valid.
+        The Gist might not exist if it was deleted or if the token
+        doesn't have access to it.
+
+        Args:
+            gist_id: ID of the Gist to check
+
+        Returns:
+            bool: True if Gist exists and is accessible, False otherwise
+
+        Example:
+            >>> manager = GistManager(token)
+            >>> if manager.gist_exists('abc123...'):
+            ...     print("Gist exists")
+            ... else:
+            ...     print("Gist not found, will create new one")
+        """
+        logging.debug(f"Checking if Gist exists: {gist_id}")
+
+        url = f"{self.API_BASE}/gists/{gist_id}"
+
+        try:
+            response = self.session.get(url, timeout=30)
+
+            if response.status_code == 200:
+                logging.debug("Gist exists and is accessible")
+                return True
+            elif response.status_code == 404:
+                logging.debug("Gist not found (may have been deleted)")
+                return False
+            else:
+                # For other errors (403, 401, etc.), log but return False
+                # This allows the script to create a new Gist instead of failing
+                logging.warning(
+                    f"Unexpected status checking Gist: {response.status_code}"
+                )
+                return False
+
+        except requests.exceptions.Timeout:
+            logging.warning("Request to check Gist timed out")
+            return False
+        except requests.exceptions.RequestException as e:
+            logging.warning(f"Error checking if Gist exists: {e}")
+            return False
+
+    def _handle_api_error(self, response: requests.Response, operation: str) -> None:
+        """
+        Handle GitHub API error responses.
+
+        Provides detailed error messages based on HTTP status codes.
+
+        Args:
+            response: The failed response object
+            operation: Description of the operation that failed
+
+        Raises:
+            GistAPIError: Always raises with a descriptive error message
+        """
+        status_code = response.status_code
+
+        # Try to extract error message from response
+        try:
+            error_data = response.json()
+            api_message = error_data.get('message', 'No error message provided')
+        except Exception:
+            api_message = response.text[:200] if response.text else 'No response body'
+
+        # Build detailed error message based on status code
+        if status_code == 401:
+            error_msg = (
+                f"Authentication failed ({status_code}): {api_message}\n\n"
+                "Your GitHub token may be invalid or expired.\n"
+                "Please re-authenticate:\n"
+                "  gh auth login --scopes gist\n"
+                "Or generate a new token at:\n"
+                "  https://github.com/settings/tokens"
+            )
+        elif status_code == 403:
+            error_msg = (
+                f"Permission denied ({status_code}): {api_message}\n\n"
+                "Your token may not have the 'gist' scope.\n"
+                "Please re-authenticate with the correct scope:\n"
+                "  gh auth login --scopes gist"
+            )
+        elif status_code == 404:
+            error_msg = (
+                f"Gist not found ({status_code}): {api_message}\n\n"
+                "The Gist may have been deleted.\n"
+                "A new Gist will be created on the next run."
+            )
+        elif status_code == 422:
+            error_msg = (
+                f"Validation failed ({status_code}): {api_message}\n\n"
+                "The request data was invalid."
+            )
+        elif status_code == 429:
+            error_msg = (
+                f"Rate limit exceeded ({status_code}): {api_message}\n\n"
+                "GitHub API rate limit reached.\n"
+                "Please try again later."
+            )
+        elif status_code >= 500:
+            error_msg = (
+                f"GitHub server error ({status_code}): {api_message}\n\n"
+                "GitHub's servers are experiencing issues.\n"
+                "Please try again later."
+            )
+        else:
+            error_msg = (
+                f"Failed to {operation} ({status_code}): {api_message}"
+            )
+
+        logging.error(error_msg)
+        raise GistAPIError(error_msg)
+
+
+# =============================================================================
 # Main Entry Point (to be implemented in subsequent tasks)
 # =============================================================================
 
