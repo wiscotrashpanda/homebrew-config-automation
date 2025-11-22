@@ -176,6 +176,68 @@ EOF
 }
 
 ################################################################################
+# DEPENDENCY CHECKING
+################################################################################
+
+# check_dependencies: Verify all required tools are installed and configured
+#
+# Checks for the following dependencies:
+#   1. GitHub CLI (gh) - must be installed and authenticated
+#   2. Homebrew (brew) - must be installed
+#   3. jq - JSON processor for config file manipulation
+#
+# This function exits the script with an appropriate error code if any
+# dependency is missing or not properly configured.
+#
+# Exit codes:
+#   1 - GitHub CLI not installed or not authenticated
+#   2 - Homebrew not installed
+#   4 - jq not installed (configuration error)
+#
+check_dependencies() {
+    log_info "Checking dependencies..."
+
+    # Check if GitHub CLI is installed
+    if ! command -v gh &>/dev/null; then
+        log_error "GitHub CLI (gh) is not installed"
+        log_error "Install with: brew install gh"
+        log_error "Then authenticate with: gh auth login"
+        exit 1
+    fi
+
+    # Check if GitHub CLI is authenticated
+    # The 'gh auth status' command returns 0 if authenticated, non-zero otherwise
+    if ! gh auth status &>/dev/null; then
+        log_error "GitHub CLI is not authenticated"
+        log_error "Please run: gh auth login"
+        log_error "Make sure to grant the 'gist' scope during authentication"
+        exit 1
+    fi
+
+    log_info "✓ GitHub CLI is installed and authenticated"
+
+    # Check if Homebrew is installed
+    if ! command -v brew &>/dev/null; then
+        log_error "Homebrew is not installed"
+        log_error "Visit https://brew.sh for installation instructions"
+        exit 2
+    fi
+
+    log_info "✓ Homebrew is installed"
+
+    # Check if jq is installed
+    if ! command -v jq &>/dev/null; then
+        log_error "jq (JSON processor) is not installed"
+        log_error "Install with: brew install jq"
+        exit 4
+    fi
+
+    log_info "✓ jq is installed"
+
+    log_info "All dependencies satisfied"
+}
+
+################################################################################
 # INITIALIZATION
 ################################################################################
 
@@ -248,6 +310,9 @@ init_config
 log_info "========================================="
 log_info "Brewfile Backup Script v1.0.0"
 log_info "========================================="
+
+# Check dependencies
+check_dependencies
 
 # The main implementation will be added in subsequent tasks
 log_info "Script skeleton initialized successfully"
