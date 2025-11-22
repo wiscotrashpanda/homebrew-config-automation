@@ -176,6 +176,65 @@ EOF
 }
 
 ################################################################################
+# CHANGE DETECTION
+################################################################################
+
+# check_changes: Detect if Brewfile has changed since last backup
+#
+# Compares the current Brewfile hash with the hash stored in the config file.
+# If they match, the Brewfile hasn't changed and we can skip uploading.
+#
+# This function respects the --force flag, which bypasses change detection.
+#
+# Global variables used:
+#   BREWFILE_HASH - Current Brewfile hash
+#   FORCE - Whether to force upload regardless of changes
+#
+# Returns:
+#   0 - Changes detected (or forced), should upload
+#   1 - No changes detected, can skip upload
+#
+check_changes() {
+    # If --force flag is set, always return "changes detected"
+    if [[ "$FORCE" == "true" ]]; then
+        log_info "Force mode enabled, skipping change detection"
+        return 0
+    fi
+
+    log_info "Checking for changes since last backup..."
+
+    # Get previous hash from config file
+    local previous_hash
+    previous_hash=$(get_config_value "last_hash")
+
+    # If no previous hash exists, this is the first run
+    if [[ -z "$previous_hash" ]]; then
+        log_info "No previous backup found (first run)"
+        return 0
+    fi
+
+    # Compare hashes
+    if [[ "$BREWFILE_HASH" == "$previous_hash" ]]; then
+        log_info "✓ Brewfile unchanged (hash: ${BREWFILE_HASH:0:16}...)"
+        log_info "Skipping upload to save bandwidth and avoid unnecessary Gist revisions"
+
+        # Get last backup timestamp for informational purposes
+        local last_backup
+        last_backup=$(get_config_value "last_backup")
+        if [[ -n "$last_backup" ]]; then
+            log_info "Last backup: $last_backup"
+        fi
+
+        return 1  # No changes
+    else
+        log_info "✓ Brewfile has changed"
+        log_info "  Previous hash: ${previous_hash:0:16}..."
+        log_info "  Current hash:  ${BREWFILE_HASH:0:16}..."
+        return 0  # Has changes
+    fi
+}
+
+################################################################################
 # BREWFILE GENERATION
 ################################################################################
 
@@ -198,12 +257,19 @@ generate_brewfile() {
     log_info "Generating Brewfile from current Homebrew installation..."
 
     # Generate Brewfile (--force overwrites existing file)
-    # Redirect stderr to capture any warnings or errors
-    if ! brew bundle dump --force --file="$BREWFILE_PATH" 2>&1 | grep -v "^$" | while read -r line; do
-        log_info "  brew: $line"
-    done; then
+    # Capture output for logging
+    local brew_output
+    if ! brew_output=$(brew bundle dump --force --file="$BREWFILE_PATH" 2>&1); then
         log_error "Failed to generate Brewfile"
+        log_error "$brew_output"
         exit 2
+    fi
+
+    # Log brew output if not empty
+    if [[ -n "$brew_output" ]]; then
+        echo "$brew_output" | while IFS= read -r line; do
+            [[ -n "$line" ]] && log_info "  brew: $line"
+        done
     fi
 
     # Verify Brewfile was created
@@ -468,7 +534,16 @@ check_dependencies
 # Generate Brewfile
 generate_brewfile
 
+# Check if Brewfile has changed
+if ! check_changes; then
+    log_info "========================================="
+    log_info "Backup skipped (no changes detected)"
+    log_info "========================================="
+    exit 0
+fi
+
 # The main implementation will be added in subsequent tasks
+log_info "Changes detected, ready to upload to Gist"
 log_info "Script execution completed successfully"
 
 exit 0
