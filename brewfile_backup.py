@@ -714,6 +714,207 @@ class GistManager:
 
 
 # =============================================================================
+# Configuration Manager Module
+# =============================================================================
+
+class ConfigManager:
+    """
+    Manages persistent configuration and state.
+
+    This class handles reading and writing configuration data to a JSON file
+    stored in the user's config directory. The configuration stores:
+    - Gist ID (for subsequent updates)
+    - Last backup hash (for change detection)
+    - Last backup timestamp
+    - Gist URL (for user reference)
+
+    The configuration follows XDG Base Directory specification and is stored
+    at: ~/.config/brewfile-backup/config.json
+    """
+
+    def __init__(self, config_dir: Optional[Path] = None):
+        """
+        Initialize the configuration manager.
+
+        Args:
+            config_dir: Override default config directory (mainly for testing)
+        """
+        if config_dir:
+            self.config_dir = config_dir
+        else:
+            # Default: ~/.config/brewfile-backup/
+            self.config_dir = Path.home() / ".config" / "brewfile-backup"
+
+        self.config_file = self.config_dir / "config.json"
+
+        # Ensure config directory exists with proper permissions
+        self._ensure_config_dir()
+
+    def load(self) -> dict:
+        """
+        Load configuration from file.
+
+        If the configuration file doesn't exist or is invalid, returns
+        an empty configuration dictionary.
+
+        Returns:
+            dict: Configuration data with keys:
+                - gist_id (str): GitHub Gist ID
+                - last_hash (str): SHA-256 hash of last backup
+                - last_backup (str): ISO 8601 timestamp
+                - gist_url (str): URL to view the Gist
+
+        Example:
+            >>> config = ConfigManager().load()
+            >>> if 'gist_id' in config:
+            ...     print(f"Using existing Gist: {config['gist_id']}")
+            ... else:
+            ...     print("No previous backup found")
+        """
+        if not self.config_file.exists():
+            logging.debug("No existing configuration file found")
+            return {}
+
+        try:
+            with open(self.config_file, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+
+            logging.debug(f"Loaded configuration from {self.config_file}")
+
+            # Validate configuration structure
+            if not isinstance(config, dict):
+                logging.warning("Configuration file is not a valid dictionary, returning empty config")
+                return {}
+
+            return config
+
+        except json.JSONDecodeError as e:
+            logging.warning(f"Configuration file is corrupted (invalid JSON): {e}")
+            logging.warning("Starting with empty configuration")
+            return {}
+        except Exception as e:
+            logging.warning(f"Error reading configuration file: {e}")
+            return {}
+
+    def save(self, config: dict) -> None:
+        """
+        Save configuration to file.
+
+        Writes the configuration atomically by first writing to a temporary
+        file and then renaming it. This prevents corruption if the script
+        is interrupted during writing.
+
+        Args:
+            config: Configuration dictionary to save
+
+        Raises:
+            ConfigurationError: If saving fails
+
+        Example:
+            >>> manager = ConfigManager()
+            >>> config = {
+            ...     'gist_id': 'abc123',
+            ...     'last_hash': 'def456',
+            ...     'last_backup': '2025-11-22T02:00:00Z'
+            ... }
+            >>> manager.save(config)
+        """
+        # Ensure config directory exists
+        self._ensure_config_dir()
+
+        # Write to temporary file first (atomic write)
+        temp_file = self.config_file.with_suffix('.tmp')
+
+        try:
+            with open(temp_file, 'w', encoding='utf-8') as f:
+                json.dump(config, f, indent=2, ensure_ascii=False)
+                # Ensure data is written to disk
+                f.flush()
+                os.fsync(f.fileno())
+
+            # Atomic rename (POSIX guarantees atomicity)
+            temp_file.replace(self.config_file)
+
+            # Set restrictive permissions (owner read/write only)
+            os.chmod(self.config_file, 0o600)
+
+            logging.debug(f"Saved configuration to {self.config_file}")
+
+        except Exception as e:
+            error_msg = f"Failed to save configuration: {e}"
+            logging.error(error_msg)
+
+            # Clean up temp file if it exists
+            if temp_file.exists():
+                try:
+                    temp_file.unlink()
+                except Exception:
+                    pass
+
+            raise ConfigurationError(error_msg)
+
+    def update(self, **kwargs) -> dict:
+        """
+        Update configuration with new values.
+
+        This is a convenience method that loads the current config,
+        updates it with the provided values, and saves it back.
+
+        Args:
+            **kwargs: Configuration values to update
+
+        Returns:
+            dict: Updated configuration
+
+        Example:
+            >>> manager = ConfigManager()
+            >>> config = manager.update(
+            ...     gist_id='abc123',
+            ...     last_hash='def456',
+            ...     last_backup=datetime.utcnow().isoformat() + 'Z'
+            ... )
+        """
+        config = self.load()
+        config.update(kwargs)
+        self.save(config)
+        return config
+
+    def _ensure_config_dir(self) -> None:
+        """
+        Ensure configuration directory exists with proper permissions.
+
+        Creates the directory if it doesn't exist. Sets permissions to
+        755 (rwxr-xr-x) for the directory.
+
+        Raises:
+            ConfigurationError: If directory creation fails
+        """
+        try:
+            self.config_dir.mkdir(parents=True, exist_ok=True)
+
+            # Set directory permissions (owner rwx, group rx, other rx)
+            os.chmod(self.config_dir, 0o755)
+
+            logging.debug(f"Configuration directory: {self.config_dir}")
+
+        except Exception as e:
+            error_msg = f"Failed to create configuration directory {self.config_dir}: {e}"
+            logging.error(error_msg)
+            raise ConfigurationError(error_msg)
+
+    def get_log_file(self) -> Path:
+        """
+        Get the path to the log file.
+
+        The log file is stored in the same directory as the config file.
+
+        Returns:
+            Path: Path to backup.log
+        """
+        return self.config_dir / "backup.log"
+
+
+# =============================================================================
 # Main Entry Point (to be implemented in subsequent tasks)
 # =============================================================================
 
