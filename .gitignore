@@ -1,28 +1,40 @@
+# Python (legacy - from old Python implementation)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.venv/
+venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
 # macOS
 .DS_Store
 .AppleDouble
 .LSOverride
 
-# Log files
+# Testing
+test_*.sh
+*.test
+
+# Logs (local testing)
 *.log
+
+# Config (contains Gist IDs and hashes)
+config.json
 
 # Temporary files
 *.tmp
-*.temp
-*.swp
-*.swo
-*~
+tmp/
 
-# Test artifacts
-test-output/
-test-logs/
-
-# Development artifacts
-scratch/
-notes.txt
-
-# User configuration (example should be committed)
-config.sh
-
-# Kiro planning specs (keeping for reference)
-# .kiro/
+# Brewfile (local copy)
+Brewfile
+Brewfile.lock.json
