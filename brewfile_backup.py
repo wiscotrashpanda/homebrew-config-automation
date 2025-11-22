@@ -915,29 +915,235 @@ class ConfigManager:
 
 
 # =============================================================================
-# Main Entry Point (to be implemented in subsequent tasks)
+# Logger Setup
+# =============================================================================
+
+def setup_logging(log_file: Path, verbose: bool = False) -> None:
+    """
+    Configure logging for the script.
+
+    Sets up two handlers:
+    1. File handler: Logs to backup.log with INFO level
+    2. Stream handler: Logs to stderr (captured by launchd)
+
+    Args:
+        log_file: Path to the log file
+        verbose: If True, set log level to DEBUG
+
+    The log format includes timestamp, level, and message.
+    File handler rotates automatically via external tools (newsyslog).
+    """
+    log_level = logging.DEBUG if verbose else logging.INFO
+
+    # Create formatters
+    file_formatter = logging.Formatter(
+        '%(asctime)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+
+    stream_formatter = logging.Formatter(
+        '%(levelname)s - %(message)s'
+    )
+
+    # File handler - writes to backup.log
+    file_handler = logging.FileHandler(log_file, encoding='utf-8')
+    file_handler.setLevel(log_level)
+    file_handler.setFormatter(file_formatter)
+
+    # Stream handler - writes to stderr (captured by launchd)
+    stream_handler = logging.StreamHandler(sys.stderr)
+    stream_handler.setLevel(log_level)
+    stream_handler.setFormatter(stream_formatter)
+
+    # Configure root logger
+    root_logger = logging.getLogger()
+    root_logger.setLevel(log_level)
+    root_logger.addHandler(file_handler)
+    root_logger.addHandler(stream_handler)
+
+    logging.debug(f"Logging configured: level={logging.getLevelName(log_level)}, file={log_file}")
+
+
+# =============================================================================
+# Main Backup Logic
+# =============================================================================
+
+def run_backup(force: bool = False, dry_run: bool = False) -> int:
+    """
+    Execute the backup process.
+
+    This is the main orchestration function that:
+    1. Authenticates with GitHub
+    2. Generates the Brewfile
+    3. Checks if content has changed (unless --force)
+    4. Creates or updates the Gist
+    5. Saves configuration
+
+    Args:
+        force: If True, upload even if content hasn't changed
+        dry_run: If True, generate Brewfile but skip upload
+
+    Returns:
+        int: Exit code (0 for success, non-zero for errors)
+    """
+    logging.info("=" * 60)
+    logging.info("Starting Brewfile backup")
+    logging.info("=" * 60)
+
+    try:
+        # Initialize configuration manager
+        config_manager = ConfigManager()
+        config = config_manager.load()
+
+        # Step 1: Authenticate with GitHub
+        logging.info("Step 1/4: Authenticating with GitHub")
+        try:
+            token = GitHubAuth.get_token()
+        except AuthenticationError as e:
+            logging.error(f"Authentication failed:\n{e}")
+            return EXIT_AUTH_ERROR
+
+        # Step 2: Generate Brewfile
+        logging.info("Step 2/4: Generating Brewfile")
+        try:
+            generator = BrewfileGenerator(config_manager.config_dir)
+            content, current_hash = generator.generate()
+        except BrewfileGenerationError as e:
+            logging.error(f"Brewfile generation failed:\n{e}")
+            return EXIT_BREW_ERROR
+
+        # Step 3: Check if content has changed
+        logging.info("Step 3/4: Checking for changes")
+        last_hash = config.get('last_hash')
+
+        if not force and last_hash == current_hash:
+            logging.info("Content unchanged since last backup (hash matches)")
+            logging.info("Skipping upload (use --force to upload anyway)")
+            logging.info("Backup completed successfully (no changes)")
+            return EXIT_SUCCESS
+
+        if last_hash:
+            logging.info("Content has changed, proceeding with upload")
+        else:
+            logging.info("No previous backup found, creating new Gist")
+
+        if dry_run:
+            logging.info("Dry run mode: Skipping upload")
+            logging.info(f"Would upload {len(content)} bytes ({len(content.splitlines())} lines)")
+            logging.info(f"Current hash: {current_hash}")
+            return EXIT_SUCCESS
+
+        # Step 4: Upload to Gist
+        logging.info("Step 4/4: Uploading to GitHub Gist")
+        gist_manager = GistManager(token)
+
+        try:
+            gist_id = config.get('gist_id')
+
+            # Check if we have a Gist ID and if it still exists
+            if gist_id and gist_manager.gist_exists(gist_id):
+                # Update existing Gist
+                logging.info(f"Updating existing Gist: {gist_id}")
+                gist_manager.update_gist(gist_id, content)
+                gist_url = config.get('gist_url', f"https://gist.github.com/{gist_id}")
+            else:
+                # Create new Gist
+                if gist_id:
+                    logging.warning(f"Previous Gist {gist_id} not found, creating new one")
+
+                logging.info("Creating new Gist")
+                gist_id, gist_url = gist_manager.create_gist(content)
+
+            # Save configuration
+            config_manager.update(
+                gist_id=gist_id,
+                gist_url=gist_url,
+                last_hash=current_hash,
+                last_backup=datetime.utcnow().isoformat() + 'Z'
+            )
+
+            logging.info("=" * 60)
+            logging.info("Backup completed successfully!")
+            logging.info(f"Gist ID: {gist_id}")
+            logging.info(f"Gist URL: {gist_url}")
+            logging.info(f"Size: {len(content)} bytes ({len(content.splitlines())} lines)")
+            logging.info(f"Hash: {current_hash}")
+            logging.info("=" * 60)
+
+            return EXIT_SUCCESS
+
+        except GistAPIError as e:
+            logging.error(f"Gist API error:\n{e}")
+            return EXIT_API_ERROR
+
+    except ConfigurationError as e:
+        logging.error(f"Configuration error:\n{e}")
+        return EXIT_CONFIG_ERROR
+    except Exception as e:
+        logging.error(f"Unexpected error: {e}", exc_info=True)
+        return EXIT_UNKNOWN_ERROR
+
+
+# =============================================================================
+# Main Entry Point
 # =============================================================================
 
 def main():
     """Main entry point for the script."""
-    print("Brewfile Backup - Authentication Module Implemented")
-    print("Testing authentication...")
+    # Parse command-line arguments
+    parser = argparse.ArgumentParser(
+        description='Backup Homebrew Brewfile to GitHub Gist',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  %(prog)s                    Run backup (scheduled mode)
+  %(prog)s --verbose          Run with debug logging
+  %(prog)s --force            Force upload even if unchanged
+  %(prog)s --dry-run          Generate Brewfile but skip upload
+
+Configuration:
+  Config file: ~/.config/brewfile-backup/config.json
+  Log file:    ~/.config/brewfile-backup/backup.log
+
+Authentication:
+  Preferred: gh auth login --scopes gist
+  Fallback:  export GITHUB_TOKEN='your_token'
+        """
+    )
+
+    parser.add_argument(
+        '--force',
+        action='store_true',
+        help='Force upload even if content is unchanged'
+    )
+
+    parser.add_argument(
+        '--dry-run',
+        action='store_true',
+        help='Generate Brewfile but skip upload to Gist'
+    )
+
+    parser.add_argument(
+        '--verbose', '-v',
+        action='store_true',
+        help='Enable verbose (debug) logging'
+    )
+
+    args = parser.parse_args()
+
+    # Set up logging
+    config_manager = ConfigManager()
+    log_file = config_manager.get_log_file()
 
     try:
-        token = GitHubAuth.get_token()
-        print(f"✓ Authentication successful (token length: {len(token)})")
-    except AuthenticationError as e:
-        print(f"✗ Authentication failed:\n{e}")
-        return EXIT_AUTH_ERROR
+        setup_logging(log_file, verbose=args.verbose)
+    except Exception as e:
+        print(f"Error setting up logging: {e}", file=sys.stderr)
+        return EXIT_CONFIG_ERROR
 
-    return EXIT_SUCCESS
+    # Run the backup
+    return run_backup(force=args.force, dry_run=args.dry_run)
 
 
 if __name__ == '__main__':
-    # Set up basic logging for testing
-    logging.basicConfig(
-        level=logging.DEBUG,
-        format='%(asctime)s - %(levelname)s - %(message)s'
-    )
-
     sys.exit(main())
